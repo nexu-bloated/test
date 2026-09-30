@@ -109,6 +109,7 @@ def get_checkpoints(base_url: str) -> List[str]:
     # also exposing conventional checkpoint files downloaded to checkpoints/.
     values = _extract_options(info, "UNETLoader", "unet_name")
     values.extend(_extract_options(info, "CheckpointLoaderSimple", "ckpt_name"))
+    values.extend(_extract_options(info, "AnimaBoosterLoader", "model_name"))
     return list(dict.fromkeys(values))
 
 
@@ -226,3 +227,23 @@ def health_check(base_url: str) -> bool:
         return True
     except ComfyUIError:
         return False
+
+def queue_prompt(base_url: str, workflow: dict) -> str:
+    """Submit a workflow to ComfyUI's /prompt endpoint and return the prompt_id."""
+    import json
+    import urllib.request
+
+    url = f"{base_url.rstrip('/')}/prompt"
+    payload = json.dumps({"prompt": workflow}).encode("utf-8")
+
+    req = urllib.request.Request(
+        url,
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+
+    with urllib.request.urlopen(req, timeout=120) as resp:
+        result = json.loads(resp.read().decode("utf-8"))
+
+    return result.get("prompt_id", "")

@@ -1,15 +1,13 @@
-// static/js/imagePreview.js
+// static/js/components/imagePreview.js
 /**
- * imagePreview.js – Gallery rendering, polling, inspect, remix, and PNG import.
- */
-
+imagePreview.js – Gallery rendering, polling, inspect, remix, and PNG import.
+*/
 import {
   getHistory,
   getQueue,
   imageKey,
   imageUrl,
 } from "../api.js";
-
 import state, {
   RESOLUTION_PRESETS,
   addCustomResolution,
@@ -17,8 +15,8 @@ import state, {
   setFixedSeed,
   setSeedMode,
   updatePref,
+  setModelMode,
 } from "../state.js";
-
 import * as ui from "../ui.js";
 import * as imageCache from "../imageCache.js";
 
@@ -26,11 +24,9 @@ let queuePollTimer = null;
 let fallbackGalleryTimer = null;
 let queueInFlight = false;
 let lastQueueActive = false;
-
 let refreshPromise = null;
 let gallerySignature = "";
 let sessionToken = 0;
-
 let inspectToken = 0;
 let currentInspectKey = null;
 
@@ -49,66 +45,50 @@ function signatureFor(images) {
 }
 
 /**
- * Reset all transient image session state.
- * Call when tunnel changes.
- */
+Reset all transient image session state.
+Call when tunnel changes.
+*/
 export function resetImageSession() {
   sessionToken += 1;
-
   closeInspect();
-
   gallerySignature = "";
   state.gallery = [];
   lastQueueActive = false;
   queueInFlight = false;
-
   imageCache.clear();
 }
 
 // ── gallery refresh ─────────────────────────────────────────────────
-
 /**
- * Fetch history and re-render the gallery.
- * Single-flight + signature-diffed.
- */
+Fetch history and re-render the gallery.
+Single-flight + signature-diffed.
+*/
 export function refreshGallery(force = false) {
   if (refreshPromise) {
     return refreshPromise;
   }
-
   refreshPromise = performRefresh(force).finally(() => {
     refreshPromise = null;
   });
-
   return refreshPromise;
 }
 
 async function performRefresh(force) {
   if (!state.tunnelUrl) return;
-
   const token = sessionToken;
-
   try {
     const data = await getHistory(state.tunnelUrl);
-
     if (token !== sessionToken) return;
-
     let images = data.images || [];
-
     if (state.gallerySort === "oldest") {
       images = [...images].reverse();
     }
-
     state.gallery = images;
-
     const signature = signatureFor(images);
-
     if (!force && signature === gallerySignature) {
       return;
     }
-
     gallerySignature = signature;
-
     ui.renderGallery(images, stableImageUrl, imageKey);
   } catch (err) {
     if (token === sessionToken) {
@@ -118,14 +98,10 @@ async function performRefresh(force) {
 }
 
 // ── queue polling ───────────────────────────────────────────────────
-
 function startTimers() {
   if (queuePollTimer) return;
-
   pollQueue();
-
   queuePollTimer = setInterval(pollQueue, 3500);
-
   // Slow fallback only.
   fallbackGalleryTimer = setInterval(() => {
     refreshGallery(false);
@@ -137,7 +113,6 @@ function stopTimers() {
     clearInterval(queuePollTimer);
     queuePollTimer = null;
   }
-
   if (fallbackGalleryTimer) {
     clearInterval(fallbackGalleryTimer);
     fallbackGalleryTimer = null;
@@ -155,9 +130,7 @@ function onVisibilityChange() {
 
 export function startQueuePolling() {
   stopQueuePolling();
-
   document.addEventListener("visibilitychange", onVisibilityChange);
-
   if (!document.hidden) {
     startTimers();
   }
@@ -172,23 +145,17 @@ async function pollQueue() {
   if (!state.tunnelUrl) return;
   if (document.hidden) return;
   if (queueInFlight) return;
-
   queueInFlight = true;
-
   try {
     const q = await getQueue(state.tunnelUrl);
-
     const running = q.running ?? 0;
     const pending = q.pending ?? 0;
     const active = running + pending > 0;
-
     ui.setQueueLabel(running, pending);
-
     // Refresh once when queue settles.
     if (lastQueueActive && !active) {
       refreshGallery(true);
     }
-
     lastQueueActive = active;
   } catch {
     // Queue telemetry is non-critical.
@@ -198,11 +165,10 @@ async function pollQueue() {
 }
 
 /**
- * Tell the preview system that new images are likely soon.
- */
+Tell the preview system that new images are likely soon.
+*/
 export function expectNewImages() {
   lastQueueActive = true;
-
   // Quick check for fast jobs.
   setTimeout(() => {
     refreshGallery(true);
@@ -210,25 +176,18 @@ export function expectNewImages() {
 }
 
 // ── inspect / lightbox ──────────────────────────────────────────────
-
 export function openInspect(index) {
   if (index < 0 || index >= state.gallery.length) return;
-
   state.inspectIndex = index;
-
   const img = state.gallery[index];
   const key = imageKey(img);
   const stableUrl = stableImageUrl(img);
-
   const cached = imageCache.getIfCached(key);
-
   if (currentInspectKey && currentInspectKey !== key) {
     imageCache.unpin(currentInspectKey);
   }
-
   currentInspectKey = key;
   imageCache.pin(key);
-
   // Show immediately from cache if possible.
   ui.showInspect(
     cached || stableUrl,
@@ -236,9 +195,7 @@ export function openInspect(index) {
     state.gallery.length,
     img.filename || ""
   );
-
   const token = ++inspectToken;
-
   // Upgrade to cached object URL when ready.
   imageCache
     .getCachedObjectUrl(key, stableUrl)
@@ -252,7 +209,6 @@ export function openInspect(index) {
         ui.setInspectImage(stableUrl);
       }
     });
-
   prefetchInspectNeighbors(index);
 }
 
@@ -260,20 +216,16 @@ export function closeInspect() {
   if (currentInspectKey) {
     imageCache.unpin(currentInspectKey);
   }
-
   currentInspectKey = null;
   inspectToken += 1;
-
   ui.hideInspect();
 }
 
 export function navigateInspect(direction) {
   if (!state.gallery.length) return;
-
   const next =
     (state.inspectIndex + direction + state.gallery.length) %
     state.gallery.length;
-
   openInspect(next);
 }
 
@@ -282,14 +234,11 @@ export function currentInspectMeta() {
 }
 
 // ── prefetch ────────────────────────────────────────────────────────
-
 export function prefetchImageByIndex(index) {
   const img = state.gallery[index];
-
   if (!img) return;
   if (document.hidden) return;
   if (navigator.connection?.saveData) return;
-
   imageCache.prefetch(imageKey(img), stableImageUrl(img));
 }
 
@@ -297,9 +246,7 @@ function prefetchInspectNeighbors(index) {
   if (!state.gallery.length) return;
   if (document.hidden) return;
   if (navigator.connection?.saveData) return;
-
   const indexes = [index - 1, index + 1, index + 2];
-
   for (const i of indexes) {
     const wrapped = (i + state.gallery.length) % state.gallery.length;
     if (wrapped !== index) {
@@ -309,7 +256,6 @@ function prefetchInspectNeighbors(index) {
 }
 
 // ── remix ───────────────────────────────────────────────────────────
-
 export function openRemix(meta) {
   state.remixMeta = meta || null;
   ui.showRemix(state.remixMeta);
@@ -322,10 +268,8 @@ function syncPromptCounts() {
 
 function addRemixLoras(loras) {
   ui.clearLoraRows();
-
   for (const lora of Array.isArray(loras) ? loras : []) {
     if (!lora?.name) continue;
-
     ui.addLoraRow(
       state._loraNames || [],
       undefined,
@@ -336,16 +280,13 @@ function addRemixLoras(loras) {
 }
 
 /**
- * Apply normalized image metadata to the current generation form.
- */
+Apply normalized image metadata to the current generation form.
+*/
 export function applyRemixData(meta) {
   const m = meta || {};
-
   ui.els.posPrompt.value = typeof m.pos === "string" ? m.pos : "";
   ui.els.negPrompt.value = typeof m.neg === "string" ? m.neg : "";
-
   syncPromptCounts();
-
   const steps = Number.parseInt(m.steps, 10);
   if (Number.isSafeInteger(steps) && steps >= 1 && steps <= 50) {
     updatePref("steps", steps, false);
@@ -353,7 +294,6 @@ export function applyRemixData(meta) {
     ui.els.stepsVal.textContent = String(steps);
     ui.updateRangeFill(ui.els.rangeSteps);
   }
-
   const cfg = Number.parseFloat(m.cfg);
   if (Number.isFinite(cfg) && cfg >= 0 && cfg <= 20) {
     updatePref("cfg", cfg, false);
@@ -361,7 +301,6 @@ export function applyRemixData(meta) {
     ui.els.cfgVal.textContent = cfg.toFixed(1);
     ui.updateRangeFill(ui.els.rangeCfg);
   }
-
   const seed = Number.parseInt(m.seed, 10);
   if (Number.isSafeInteger(seed) && seed > 0) {
     setFixedSeed(seed, false);
@@ -369,12 +308,9 @@ export function applyRemixData(meta) {
   } else {
     setSeedMode("random", false);
   }
-
   ui.updateSeedUI(state.seedMode, state.fixedSeed);
-
   const width = Number.parseInt(m.width, 10);
   const height = Number.parseInt(m.height, 10);
-
   if (
     Number.isSafeInteger(width) &&
     Number.isSafeInteger(height) &&
@@ -386,36 +322,46 @@ export function applyRemixData(meta) {
     addCustomResolution(width, height);
     ui.syncControlsFromState(state, RESOLUTION_PRESETS);
   }
-
   if (m.ckpt) {
     ui.selectOrAddOption(ui.els.selCheckpoint, m.ckpt);
   }
-
   if (m.sampler) {
     updatePref("sampler", m.sampler, false);
     ui.selectOrAddOption(ui.els.selSampler, m.sampler);
   }
-
   if (m.scheduler) {
     updatePref("scheduler", m.scheduler, false);
     ui.selectOrAddOption(ui.els.selScheduler, m.scheduler);
   }
 
-  addRemixLoras(m.loras);
+  if (m.workflow_name === "anima_2_9") {
+    if (typeof setModelMode === "function") {
+      setModelMode("anima_2_9", false);
+    }
+    if (ui.updateModelModeUI) {
+      ui.updateModelModeUI("anima_2_9");
+    }
+  } else if (m.workflow_name === "anima") {
+    if (typeof setModelMode === "function") {
+      setModelMode("anima", false);
+    }
+    if (ui.updateModelModeUI) {
+      ui.updateModelModeUI("anima");
+    }
+  }
 
+  addRemixLoras(m.loras);
   savePrefs();
   ui.hideRemix();
-
   if (ui.isOpen(ui.els.inspectModal)) {
     closeInspect();
   }
-
   ui.toast("Metadata injected from image.", "success");
 }
 
 /**
- * Apply the metadata currently displayed by the Remix modal.
- */
+Apply the metadata currently displayed by the Remix modal.
+*/
 export function applyRemixToForm() {
   if (state.remixMeta) {
     applyRemixData(state.remixMeta);
@@ -423,13 +369,10 @@ export function applyRemixToForm() {
 }
 
 // ── PNG metadata import ─────────────────────────────────────────────
-
 function decodeTextChunk(buffer, start, length) {
   const bytes = new Uint8Array(buffer, start, length);
   const separator = bytes.indexOf(0);
-
   if (separator < 0) return null;
-
   return {
     keyword: new TextDecoder("latin1").decode(bytes.slice(0, separator)),
     content: new TextDecoder("utf-8").decode(bytes.slice(separator + 1)),
@@ -437,43 +380,34 @@ function decodeTextChunk(buffer, start, length) {
 }
 
 /**
- * Read the ComfyUI `prompt` tEXt chunk from a PNG File.
- */
+Read the ComfyUI `prompt` tEXt chunk from a PNG File.
+*/
 export async function extractComfyUIMetadata(file) {
   const buffer = await file.arrayBuffer();
   const bytes = new Uint8Array(buffer);
-
   const pngSignature = [137, 80, 78, 71, 13, 10, 26, 10];
-
   if (
     bytes.length < 8 ||
     pngSignature.some((value, index) => bytes[index] !== value)
   ) {
     throw new Error("PNG required.");
   }
-
   const view = new DataView(buffer);
-
   let offset = 8;
   let promptData = null;
-
   while (offset + 12 <= view.byteLength) {
     const length = view.getUint32(offset);
     const dataStart = offset + 8;
     const chunkEnd = dataStart + length + 4;
-
     if (chunkEnd > view.byteLength) break;
-
     const type = String.fromCharCode(
       view.getUint8(offset + 4),
       view.getUint8(offset + 5),
       view.getUint8(offset + 6),
       view.getUint8(offset + 7)
     );
-
     if (type === "tEXt") {
       const text = decodeTextChunk(buffer, dataStart, length);
-
       if (text?.keyword === "prompt") {
         try {
           promptData = JSON.parse(text.content);
@@ -483,14 +417,11 @@ export async function extractComfyUIMetadata(file) {
         }
       }
     }
-
     offset = chunkEnd;
   }
-
   if (!promptData || typeof promptData !== "object") {
     throw new Error("No ComfyUI prompt metadata was found.");
   }
-
   return normalizeComfyPrompt(promptData);
 }
 
@@ -507,14 +438,12 @@ function normalizeComfyPrompt(promptData) {
     loras: [],
     sampler: "",
     scheduler: "",
+    workflow_name: "",
   };
-
   const textNodes = [];
-
   for (const node of Object.values(promptData)) {
     const type = node?.class_type;
     const inputs = node?.inputs || {};
-
     if (
       type === "KSampler" ||
       type === "SpectrumSPDKSampler" ||
@@ -530,10 +459,36 @@ function normalizeComfyPrompt(promptData) {
     } else if (type === "EmptyLatentImage") {
       meta.width = inputs.width ?? meta.width;
       meta.height = inputs.height ?? meta.height;
+    } else if (type === "AnimaLatentImage") {
+      meta.width = inputs.width ?? meta.width;
+      meta.height = inputs.height ?? meta.height;
     } else if (type === "CLIPTextEncode") {
       textNodes.push(inputs.text || "");
     } else if (type === "UNETLoader" || type === "CheckpointLoaderSimple") {
       meta.ckpt = inputs.unet_name ?? inputs.ckpt_name ?? meta.ckpt;
+    } else if (type === "AnimaBoosterLoader") {
+      meta.ckpt = inputs.model_name ?? meta.ckpt;
+    } else if (type === "AnimaLoRARemapTagLoader") {
+      meta.workflow_name = "anima_2_9";
+      const text = String(inputs.text || "");
+      const ANIMA_LORA_TAG_RE = /<lora:([^<>:\r\n]+):(-?\d+(?:\.\d+)?)(?::(-?\d+(?:\.\d+)?))?>/gi;
+      for (const match of text.matchAll(ANIMA_LORA_TAG_RE)) {
+        const name = match[1]?.trim();
+        if (!name) continue;
+        const weight = parseFloat(match[2] ?? "1.0");
+        const clipWeightRaw = match[3];
+        const loraEntry = {
+          name,
+          weight: Number.isFinite(weight) ? weight : 1.0,
+        };
+        if (clipWeightRaw !== undefined) {
+          const clipWeight = parseFloat(clipWeightRaw);
+          if (Number.isFinite(clipWeight)) {
+            loraEntry.clip_weight = clipWeight;
+          }
+        }
+        meta.loras.push(loraEntry);
+      }
     } else if (type === "LoraLoader") {
       if (inputs.lora_name) {
         meta.loras.push({
@@ -543,9 +498,7 @@ function normalizeComfyPrompt(promptData) {
       }
     }
   }
-
   meta.pos = textNodes[0] || "";
   meta.neg = textNodes[1] || "";
-
   return meta;
 }

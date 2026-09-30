@@ -1,8 +1,8 @@
 // static/js/main.js
 /**
- * main.js – Entry point.
- * Initializes state, binds events, and connects modules.
- */
+main.js – Entry point.
+Initializes state, binds events, and connects modules.
+*/
 import { initLoraTriggers } from "./components/loraTriggers.js";
 import * as api from "./api.js";
 import {
@@ -20,12 +20,12 @@ import state, {
   setResolution,
   setSeedMode,
   updatePref,
+  getModelModeDefaults,
+  setModelMode,
 } from "./state.js";
 import { initCivitaiSearch } from "./components/civitaiSearch.js";
 import * as ui from "./ui.js";
-
 import { submitGeneration } from "./components/generationForm.js";
-
 import {
   applyRemixData,
   applyRemixToForm,
@@ -45,16 +45,113 @@ import {
 
 document.addEventListener("DOMContentLoaded", init);
 
+function ensureModelModeSwitch() {
+  if (document.getElementById("modelModeSwitch")) return;
+
+  const checkpointRow =
+    ui.els.selCheckpoint?.closest(".nexus-control-row") ||
+    ui.els.selCheckpoint?.parentElement;
+
+  const container = checkpointRow?.parentElement;
+
+  if (!container) return;
+
+  const row = document.createElement("div");
+  row.className = "nexus-control-row";
+  row.id = "modelModeRow";
+
+  row.innerHTML = `
+    <span class="nexus-label">Engine Mode</span>
+    <div class="nexus-seed-switch" id="modelModeSwitch">
+      <button type="button" id="btnAnimaBase" class="nexus-btn nexus-seed-btn">
+        Anima Base
+      </button>
+      <button type="button" id="btnAnima29" class="nexus-btn nexus-seed-btn">
+        Anima 2.9B
+      </button>
+    </div>
+    <div id="anima29Notice" class="nexus-telemetry-text" hidden>
+      Anima 2.9B loads LoRAs through the Anima LoRA Tag Loader with automatic 2.9B block remapping.
+    </div>
+  `;
+
+  container.insertBefore(row, checkpointRow);
+
+  ui.els.modelModeSwitch = document.getElementById("modelModeSwitch");
+  ui.els.btnAnimaBase = document.getElementById("btnAnimaBase");
+  ui.els.btnAnima29 = document.getElementById("btnAnima29");
+  ui.els.anima29Notice = document.getElementById("anima29Notice");
+}
+
+function applyModelMode(mode) {
+  setModelMode(mode);
+  ui.updateModelModeUI(state.modelMode);
+
+  const defaults = getModelModeDefaults();
+
+  if (ui.els.selCheckpoint) {
+    ui.selectOrAddOption(ui.els.selCheckpoint, defaults.checkpoint);
+  }
+
+  if (ui.els.selVae) {
+    ui.selectOrAddOption(ui.els.selVae, defaults.vae);
+  }
+
+  if (ui.els.selClip) {
+    ui.selectOrAddOption(ui.els.selClip, defaults.clip);
+  }
+
+  if (ui.els.selSampler) {
+    const samplerExists = Array.from(ui.els.selSampler.options).some(
+      (option) => option.value === defaults.sampler
+    );
+
+    if (samplerExists) {
+      ui.els.selSampler.value = defaults.sampler;
+      updatePref("sampler", defaults.sampler, false);
+    }
+  }
+
+  if (ui.els.selScheduler) {
+    const schedulerExists = Array.from(ui.els.selScheduler.options).some(
+      (option) => option.value === defaults.scheduler
+    );
+
+    if (schedulerExists) {
+      ui.els.selScheduler.value = defaults.scheduler;
+      updatePref("scheduler", defaults.scheduler, false);
+    }
+  }
+
+  updatePref("cfg", defaults.cfg, false);
+
+  if (ui.els.rangeCfg) {
+    ui.els.rangeCfg.value = String(defaults.cfg);
+    ui.els.cfgVal.textContent = Number(defaults.cfg).toFixed(1);
+    ui.updateRangeFill(ui.els.rangeCfg);
+  }
+
+  savePrefs();
+
+  if (mode === "anima_2_9") {
+    ui.toast("Anima 2.9B mode enabled.", "info");
+  } else {
+    ui.toast("Anima Base mode enabled.", "info");
+  }
+}
+
 function init() {
   loadPrefs();
   initLoraTriggers();
   ui.syncControlsFromState(state, RESOLUTION_PRESETS);
 
+  ensureModelModeSwitch();
+  ui.updateModelModeUI(state.modelMode);
+
   initializeRangeFills();
   syncPromptCounts();
   syncHiresScaleButtons();
   syncHiresVisibility();
-
   bindEvents();
   initPromptEditor();
   if (state.tunnelUrl) {
@@ -93,30 +190,22 @@ function syncHiresVisibility() {
 }
 
 // ── uplink ──────────────────────────────────────────────────────────
-
 async function connectUplink() {
   const url = ui.els.tunnelUrl.value.trim().replace(/\/+$/, "");
-
   if (!url) {
     ui.toast("Enter a tunnel URL first.", "danger");
     return;
   }
-
   stopQueuePolling();
-
   const tunnelChanged = state.tunnelUrl !== url;
-
   if (tunnelChanged) {
     resetImageSession();
     ui.renderGallery([], () => "");
   }
-
   state.tunnelUrl = url;
   savePrefs();
-
   ui.setConnectionStatus(false);
   ui.els.btnConnect.disabled = true;
-
   try {
     const [ckptRes, vaeRes, clipRes, samplerRes, loraRes] =
       await Promise.allSettled([
@@ -126,86 +215,68 @@ async function connectUplink() {
         api.getSamplers(url),
         api.getLoras(url),
       ]);
-
     const anyOk =
       ckptRes.status === "fulfilled" ||
       vaeRes.status === "fulfilled" ||
       clipRes.status === "fulfilled" ||
       samplerRes.status === "fulfilled" ||
       loraRes.status === "fulfilled";
-
     if (!anyOk) {
       throw new Error("Could not reach ComfyUI through that tunnel.");
     }
-
     if (ckptRes.status === "fulfilled") {
       const list = ckptRes.value.checkpoints || [];
-
+      const modeDefaults = getModelModeDefaults();
       ui.fillCheckpoints(
         list,
-        ui.els.selCheckpoint.value || state.modelDefaults.checkpoint
+        ui.els.selCheckpoint.value || modeDefaults.checkpoint
       );
-
       if (!ui.els.selCheckpoint.value && list.length) {
         ui.els.selCheckpoint.value = list[0];
       }
     }
-
     if (vaeRes.status === "fulfilled") {
       const list = vaeRes.value.vaes || [];
-
-      ui.fillVaes(list, ui.els.selVae.value || state.modelDefaults.vae);
-
+      const modeDefaults = getModelModeDefaults();
+      ui.fillVaes(list, ui.els.selVae.value || modeDefaults.vae);
       if (!ui.els.selVae.value && list.length) {
         ui.els.selVae.value = list[0];
       }
     }
-
     if (clipRes.status === "fulfilled") {
       const list = clipRes.value.clips || [];
-
-      ui.fillClips(list, ui.els.selClip.value || state.modelDefaults.clip);
-
+      const modeDefaults = getModelModeDefaults();
+      ui.fillClips(list, ui.els.selClip.value || modeDefaults.clip);
       if (!ui.els.selClip.value && list.length) {
         ui.els.selClip.value = list[0];
       }
     }
-
     if (samplerRes.status === "fulfilled") {
       const samplers = samplerRes.value.samplers || [];
       const schedulers = samplerRes.value.schedulers || [];
-
       ui.fillSamplers(samplers, schedulers, state.sampler, state.scheduler);
-
       if (!ui.els.selSampler.value && samplers.length) {
         ui.els.selSampler.value = samplers[0];
         updatePref("sampler", samplers[0], false);
       }
-
       if (!ui.els.selScheduler.value && schedulers.length) {
         ui.els.selScheduler.value = schedulers[0];
         updatePref("scheduler", schedulers[0], false);
       }
     }
-
     state._loraNames =
       loraRes.status === "fulfilled" ? loraRes.value.loras || [] : [];
-
     state.connected = true;
-
     ui.setConnectionStatus(true);
     ui.syncControlsFromState(state, RESOLUTION_PRESETS);
-
+    ui.updateModelModeUI(state.modelMode);
     ui.toast("Uplink connected ✓", "success");
-
     await refreshGallery(true);
     startQueuePolling();
   } catch (err) {
     state.connected = false;
-
     ui.setConnectionStatus(false);
     stopQueuePolling();
-
     ui.toast(err.message || "Connection failed.", "danger");
   } finally {
     ui.els.btnConnect.disabled = false;
@@ -213,11 +284,9 @@ async function connectUplink() {
 }
 
 // ── modals ──────────────────────────────────────────────────────────
-
 function openCustomResolutionModal() {
   ui.els.customWidth.value = state.width > 0 ? String(state.width) : "1152";
   ui.els.customHeight.value = state.height > 0 ? String(state.height) : "896";
-
   ui.setModalError(ui.els.customResError, "");
   ui.openModal(ui.els.customResModal);
 }
@@ -230,7 +299,6 @@ function cancelCustomResolution() {
 function confirmCustomResolution() {
   const width = parseInt(ui.els.customWidth.value, 10);
   const height = parseInt(ui.els.customHeight.value, 10);
-
   if (
     !Number.isSafeInteger(width) ||
     !Number.isSafeInteger(height) ||
@@ -245,19 +313,15 @@ function confirmCustomResolution() {
     );
     return;
   }
-
   addCustomResolution(width, height);
-
   ui.syncControlsFromState(state, RESOLUTION_PRESETS);
   ui.closeModal(ui.els.customResModal);
-
   ui.toast(`Resolution set to ${width} × ${height}.`, "success");
 }
 
 function openSeedModal(seed) {
   ui.els.seedInput.value =
     Number.isSafeInteger(seed) && seed > 0 ? String(seed) : "1";
-
   ui.setModalError(ui.els.seedError, "");
   ui.openModal(ui.els.seedModal);
 }
@@ -269,23 +333,18 @@ function cancelSeedModal() {
 
 function confirmSeedModal() {
   const seed = parseInt(ui.els.seedInput.value, 10);
-
   if (!Number.isSafeInteger(seed) || seed < 1) {
     ui.setModalError(ui.els.seedError, "Seed must be a positive integer.");
     return;
   }
-
   setFixedSeed(seed);
   setSeedMode("fixed");
-
   ui.syncControlsFromState(state, RESOLUTION_PRESETS);
   ui.closeModal(ui.els.seedModal);
-
   ui.toast(`Fixed seed set to ${seed}.`, "success");
 }
 
 // ── events ──────────────────────────────────────────────────────────
-
 function bindEvents() {
   const requestGeneration = () => {
     submitGeneration(() => {
@@ -293,9 +352,17 @@ function bindEvents() {
     });
   };
 
+  // Engine Mode Switch
+  ui.els.btnAnimaBase?.addEventListener("click", () => {
+    applyModelMode("anima");
+  });
+
+  ui.els.btnAnima29?.addEventListener("click", () => {
+    applyModelMode("anima_2_9");
+  });
+
   // Connect
   ui.els.btnConnect.addEventListener("click", connectUplink);
-
   ui.els.tunnelUrl.addEventListener("keydown", (e) => {
     if (e.key === "Enter") connectUplink();
   });
@@ -312,7 +379,6 @@ function bindEvents() {
   // Resolution
   ui.els.selResolution.addEventListener("change", () => {
     const value = ui.els.selResolution.value;
-
     if (value === "custom") {
       openCustomResolutionModal();
     } else {
@@ -324,7 +390,6 @@ function bindEvents() {
   ui.els.btnCustomConfirm.addEventListener("click", confirmCustomResolution);
   ui.els.btnCustomCancel.addEventListener("click", cancelCustomResolution);
   ui.els.btnCustomClose.addEventListener("click", cancelCustomResolution);
-
   ui.els.customResModal.addEventListener("click", (e) => {
     if (e.target === ui.els.customResModal) cancelCustomResolution();
   });
@@ -334,11 +399,9 @@ function bindEvents() {
     setSeedMode("random");
     ui.updateSeedUI("random", state.fixedSeed);
   });
-
   ui.els.btnSeedFixed.addEventListener("click", () => {
     openSeedModal(state.fixedSeed > 0 ? state.fixedSeed : 1);
   });
-
   ui.els.btnSeedValue.addEventListener("click", () => {
     if (state.seedMode === "fixed") {
       openSeedModal(state.fixedSeed > 0 ? state.fixedSeed : 1);
@@ -349,11 +412,9 @@ function bindEvents() {
   ui.els.btnSeedConfirm.addEventListener("click", confirmSeedModal);
   ui.els.btnSeedCancel.addEventListener("click", cancelSeedModal);
   ui.els.btnSeedClose.addEventListener("click", cancelSeedModal);
-
   ui.els.seedModal.addEventListener("click", (e) => {
     if (e.target === ui.els.seedModal) cancelSeedModal();
   });
-
   ui.els.seedInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -364,7 +425,6 @@ function bindEvents() {
   // Batch
   ui.els.rangeBatch.addEventListener("input", () => {
     const value = parseInt(ui.els.rangeBatch.value, 10);
-
     if (!Number.isNaN(value)) {
       updatePref("batchSize", value);
       ui.updateBatchUI(value);
@@ -375,7 +435,6 @@ function bindEvents() {
   ui.els.selSampler.addEventListener("change", () => {
     updatePref("sampler", ui.els.selSampler.value);
   });
-
   ui.els.selScheduler.addEventListener("change", () => {
     updatePref("scheduler", ui.els.selScheduler.value);
   });
@@ -383,17 +442,14 @@ function bindEvents() {
   // Steps / CFG
   ui.els.rangeSteps.addEventListener("input", () => {
     const value = parseInt(ui.els.rangeSteps.value, 10);
-
     if (!Number.isNaN(value)) {
       updatePref("steps", value);
       ui.els.stepsVal.textContent = String(value);
       ui.updateRangeFill(ui.els.rangeSteps);
     }
   });
-
   ui.els.rangeCfg.addEventListener("input", () => {
     const value = parseFloat(ui.els.rangeCfg.value);
-
     if (!Number.isNaN(value)) {
       updatePref("cfg", value);
       ui.els.cfgVal.textContent = Number(value).toFixed(1);
@@ -408,9 +464,7 @@ function bindEvents() {
       ui.toast("Connect uplink to load LoRAs.", "danger");
       return;
     }
-
     ui.addLoraRow(names);
-
   });
 
   // Prompt presets
@@ -418,7 +472,6 @@ function bindEvents() {
     btn.addEventListener("click", () => {
       const target = document.getElementById(btn.dataset.target);
       if (!target) return;
-
       target.value = btn.dataset.text || "";
       target.dispatchEvent(new Event("input", { bubbles: true }));
     });
@@ -428,7 +481,6 @@ function bindEvents() {
   ui.els.posPrompt.addEventListener("input", () => {
     ui.els.posCount.textContent = String(ui.els.posPrompt.value.length);
   });
-
   ui.els.negPrompt.addEventListener("input", () => {
     ui.els.negCount.textContent = String(ui.els.negPrompt.value.length);
   });
@@ -450,21 +502,18 @@ function bindEvents() {
     ui.els.hiresStepsVal.textContent = ui.els.rangeHiresSteps.value;
     ui.updateRangeFill(ui.els.rangeHiresSteps);
   });
-
   ui.els.rangeHiresCfg.addEventListener("input", () => {
     ui.els.hiresCfgVal.textContent = Number(
       ui.els.rangeHiresCfg.value
     ).toFixed(1);
     ui.updateRangeFill(ui.els.rangeHiresCfg);
   });
-
   ui.els.rangeHiresDenoise.addEventListener("input", () => {
     ui.els.hiresDenoiseVal.textContent = Number(
       ui.els.rangeHiresDenoise.value
     ).toFixed(2);
     ui.updateRangeFill(ui.els.rangeHiresDenoise);
   });
-
   ui.els.rangeHiresSharpen.addEventListener("input", () => {
     ui.els.hiresSharpenVal.textContent = Number(
       ui.els.rangeHiresSharpen.value
@@ -477,12 +526,10 @@ function bindEvents() {
     state.gallerySort = "newest";
     refreshGallery(false);
   });
-
   ui.els.btnOldest.addEventListener("click", () => {
     state.gallerySort = "oldest";
     refreshGallery(false);
   });
-
   ui.els.btnSync.addEventListener("click", () => {
     refreshGallery(true);
   });
@@ -492,26 +539,19 @@ function bindEvents() {
     const card = e.target.closest("[data-index]");
     if (card) openInspect(parseInt(card.dataset.index, 10));
   });
-
   ui.els.galleryGrid.addEventListener("keydown", (e) => {
     if (e.key !== "Enter" && e.key !== " ") return;
-
     const card = e.target.closest("[data-index]");
     if (!card) return;
-
     e.preventDefault();
     openInspect(parseInt(card.dataset.index, 10));
   });
-
   ui.els.galleryGrid.addEventListener("contextmenu", (e) => {
     const card = e.target.closest("[data-index]");
     if (!card) return;
-
     e.preventDefault();
-
     const idx = parseInt(card.dataset.index, 10);
     const meta = state.gallery[idx]?.meta;
-
     if (meta) openRemix(meta);
   });
 
@@ -519,16 +559,12 @@ function bindEvents() {
   ui.els.galleryGrid.addEventListener("pointerover", (e) => {
     const card = e.target.closest("[data-index]");
     if (!card) return;
-
     if (card.contains(e.relatedTarget)) return;
-
     prefetchImageByIndex(parseInt(card.dataset.index, 10));
   });
-
   ui.els.galleryGrid.addEventListener("focusin", (e) => {
     const card = e.target.closest("[data-index]");
     if (!card) return;
-
     prefetchImageByIndex(parseInt(card.dataset.index, 10));
   });
 
@@ -536,13 +572,10 @@ function bindEvents() {
   ui.els.btnInspectClose.addEventListener("click", closeInspect);
   ui.els.btnInspectPrev.addEventListener("click", () => navigateInspect(-1));
   ui.els.btnInspectNext.addEventListener("click", () => navigateInspect(1));
-
   ui.els.btnInspectDownload.addEventListener("click", () => {
     const img = state.gallery[state.inspectIndex];
     if (!img) return;
-
     const a = document.createElement("a");
-
     a.href = api.imageUrl(
       state.tunnelUrl,
       img.filename,
@@ -550,15 +583,12 @@ function bindEvents() {
       img.type,
       img.meta?.prompt_id || ""
     );
-
     a.download = img.filename;
     a.click();
   });
-
   ui.els.btnInspectCopyPrompt.addEventListener("click", async () => {
     const meta = currentInspectMeta();
     if (!meta?.pos) return;
-
     try {
       await navigator.clipboard.writeText(meta.pos);
       ui.toast("Prompt copied.", "info");
@@ -566,11 +596,9 @@ function bindEvents() {
       ui.toast("Clipboard unavailable.", "danger");
     }
   });
-
   ui.els.btnInspectCopySeed.addEventListener("click", async () => {
     const meta = currentInspectMeta();
     if (!meta?.seed) return;
-
     try {
       await navigator.clipboard.writeText(String(meta.seed));
       ui.toast("Seed copied.", "info");
@@ -578,15 +606,12 @@ function bindEvents() {
       ui.toast("Clipboard unavailable.", "danger");
     }
   });
-
   ui.els.btnInspectRemix.addEventListener("click", () => {
     const meta = currentInspectMeta();
     if (!meta) return;
-
     closeInspect();
     openRemix(meta);
   });
-
   ui.els.inspectModal.addEventListener("click", (e) => {
     if (e.target === ui.els.inspectModal) closeInspect();
   });
@@ -595,19 +620,16 @@ function bindEvents() {
   ui.els.btnRemixApply.addEventListener("click", applyRemixToForm);
   ui.els.btnRemixClose.addEventListener("click", ui.hideRemix);
   ui.els.btnRemixClose2.addEventListener("click", ui.hideRemix);
-
   ui.els.remixModal.addEventListener("click", (e) => {
     if (e.target === ui.els.remixModal) ui.hideRemix();
   });
 
   // Drag-and-drop a ComfyUI PNG to inject its embedded prompt metadata.
   let dragCounter = 0;
-
   const showDropZone = () => {
     ui.els.dropZone?.classList.add("is-visible");
     ui.els.dropZone?.setAttribute("aria-hidden", "false");
   };
-
   const hideDropZone = () => {
     ui.els.dropZone?.classList.remove("is-visible");
     ui.els.dropZone?.setAttribute("aria-hidden", "true");
@@ -615,45 +637,31 @@ function bindEvents() {
 
   window.addEventListener("dragenter", (e) => {
     if (!e.dataTransfer?.types.includes("Files")) return;
-
     e.preventDefault();
-
     dragCounter += 1;
     showDropZone();
   });
-
   window.addEventListener("dragover", (e) => {
     if (e.dataTransfer?.types.includes("Files")) e.preventDefault();
   });
-
   window.addEventListener("dragleave", (e) => {
     if (!e.dataTransfer?.types.includes("Files")) return;
-
     e.preventDefault();
-
     dragCounter = Math.max(0, dragCounter - 1);
-
     if (!dragCounter) hideDropZone();
   });
-
   window.addEventListener("drop", async (e) => {
     if (!e.dataTransfer?.files?.length) return;
-
     e.preventDefault();
-
     dragCounter = 0;
     hideDropZone();
-
     const file = e.dataTransfer.files[0];
-
     const isPng =
       file.type === "image/png" || file.name.toLowerCase().endsWith(".png");
-
     if (!isPng) {
       ui.toast("Payload format rejected — PNG required.", "danger");
       return;
     }
-
     try {
       applyRemixData(await extractComfyUIMetadata(file));
     } catch (err) {
@@ -670,13 +678,11 @@ function bindEvents() {
         cancelPromptModal();
         return;
       }
-
       if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
         e.preventDefault();
         applyPromptModal();
         return;
       }
-
       // Let normal typing / modal focus trapping continue.
       return;
     }
@@ -686,17 +692,14 @@ function bindEvents() {
         cancelCustomResolution();
         return;
       }
-
       if (ui.isOpen(ui.els.seedModal)) {
         cancelSeedModal();
         return;
       }
-
       if (ui.isOpen(ui.els.remixModal)) {
         ui.hideRemix();
         return;
       }
-
       if (ui.isOpen(ui.els.inspectModal)) {
         ui.hideInspect();
         return;
@@ -706,11 +709,9 @@ function bindEvents() {
     if (ui.isOpen(ui.els.inspectModal) && !ui.isOpen(ui.els.remixModal)) {
       if (e.key === "ArrowLeft") navigateInspect(-1);
       if (e.key === "ArrowRight") navigateInspect(1);
-
       if (e.key === "d" || e.key === "D") {
         ui.els.btnInspectDownload.click();
       }
-
       return;
     }
 

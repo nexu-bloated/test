@@ -1,8 +1,7 @@
 // static/js/state.js
 /**
- * state.js – Central UI state and safe localStorage persistence.
- */
-
+state.js – Central UI state and safe localStorage persistence.
+*/
 const LS_KEY = "nexus_ui_prefs_v2";
 
 export const RESOLUTION_PRESETS = [
@@ -23,54 +22,96 @@ const state = {
   connected: false,
   generating: false,
   currentPromptId: null,
-
   // gallery / inspect / remix
   gallery: [],
   gallerySort: "newest",
   inspectIndex: -1,
   remixMeta: null,
-
   // generation params
   resolution: "1152x896",
   width: 1152,
   height: 896,
   customResolutions: [],
-
   batchSize: 1,
   seedMode: "random", // "random" | "fixed"
   fixedSeed: 0,
-
   sampler: "euler_ancestral",
   scheduler: "simple",
   steps: 20,
   cfg: 4.5,
-
   hiresScale: 1.5,
   expanded: false,
-
   // internal caches
   _loraNames: [],
   // Civitai search state.
-  // downloadLinks stores the Civitai download structure for each search result.
   civitai: {
-      searchResults: [],
-      downloadLinks: {},
-      pendingDownload: null,
-      nextCursor: null,
-      activeDownloads: {},
-      completedDownloads: {},
-    },
+    searchResults: [],
+    downloadLinks: {},
+    pendingDownload: null,
+    nextCursor: null,
+    activeDownloads: {},
+    completedDownloads: {},
+  },
 
-  // Anima-specific fallbacks carried from the original codebase.
-  // TODO: Verify Anima-specific ComfyUI node values.
+  modelMode: "anima",
+
+  // Anima Base defaults
   modelDefaults: {
     checkpoint: "anima_wai.safetensors",
     vae: "qwen_image_vae.safetensors",
     clip: "qwen_3_06b_base.safetensors",
+    sampler: "euler_ancestral",
+    scheduler: "simple",
+    steps: 20,
+    cfg: 4.5,
+  },
+
+  // Anima 2.9B defaults
+  anima29Defaults: {
+    checkpoint: "anima29B_v10_int8.safetensors",
+    vae: "qwen_image_vae.safetensors",
+    clip: "qwen_3_06b_base.safetensors",
+    sampler: "er_sde",
+    scheduler: "simple",
+    steps: 20,
+    cfg: 4.0,
+  },
+
+  // Anima 2.9B engine parameters
+  anima29: {
+    sage_attention: "auto",
+    torch_compile: true,
+    teacache_threshold: 0.25,
+    teacache_version: "v2 (Standard Precise)",
+    teacache_adaptive_mode: true,
+    teacache_early_steps_factor: 0.4,
+    teacache_late_steps_factor: 1.8,
+    teacache_start_percent: 0.0,
+    teacache_end_percent: 1.0,
+    teacache_cache_device: "cuda",
+    remap_tag_text: "",
+    remap_default_weight: 1.0,
+    remap_weight_multiplier: 1.0,
+    remap_auto_remap: true,
+    remap_save_remapped: false,
+    remap_extend_to_new_layers: false,
+    remap_extend_strength: 0.6,
+    remap_manifest: "expand_manifest_preview_v1.json",
   },
 };
 
 export default state;
+
+export function getModelModeDefaults() {
+  return state.modelMode === "anima_2_9"
+    ? state.anima29Defaults
+    : state.modelDefaults;
+}
+
+export function setModelMode(mode, save = true) {
+  state.modelMode = mode === "anima_2_9" ? "anima_2_9" : "anima";
+  if (save) savePrefs();
+}
 
 function clampInt(value, min, max, fallback) {
   const n = parseInt(value, 10);
@@ -100,12 +141,10 @@ function isPresetResolution(value) {
 
 export function setResolution(value, save = true) {
   const { width, height } = parseResolution(value);
-
   if (width > 0 && height > 0) {
     state.resolution = value;
     state.width = width;
     state.height = height;
-
     if (!isPresetResolution(value) && !state.customResolutions.includes(value)) {
       state.customResolutions.push(value);
     }
@@ -114,7 +153,6 @@ export function setResolution(value, save = true) {
     state.width = 1152;
     state.height = 896;
   }
-
   if (save) savePrefs();
 }
 
@@ -147,38 +185,34 @@ export function loadPrefs() {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) return;
-
     const saved = JSON.parse(raw);
-
     if (typeof saved.tunnelUrl === "string") {
       state.tunnelUrl = saved.tunnelUrl.trim();
     }
-
     if (Array.isArray(saved.customResolutions)) {
       state.customResolutions = saved.customResolutions.filter(
         (x) => typeof x === "string"
       );
     }
-
     if (saved.resolution) {
       setResolution(saved.resolution, false);
     }
-
     state.batchSize = clampInt(saved.batchSize, 1, 4, 1);
     state.seedMode = saved.seedMode === "fixed" ? "fixed" : "random";
     state.fixedSeed = clampInt(saved.fixedSeed, 1, Number.MAX_SAFE_INTEGER, 0);
-
     if (typeof saved.sampler === "string" && saved.sampler) {
       state.sampler = saved.sampler;
     }
-
     if (typeof saved.scheduler === "string" && saved.scheduler) {
       state.scheduler = saved.scheduler;
     }
-
     state.steps = clampInt(saved.steps, 1, 50, 20);
     state.cfg = clampFloat(saved.cfg, 0, 20, 4.5);
     state.hiresScale = clampFloat(saved.hiresScale, 1, 4, 1.5);
+
+    if (saved.modelMode === "anima" || saved.modelMode === "anima_2_9") {
+      state.modelMode = saved.modelMode;
+    }
   } catch {
     // ignore corrupt storage
   }
@@ -200,6 +234,7 @@ export function savePrefs() {
         steps: state.steps,
         cfg: state.cfg,
         hiresScale: state.hiresScale,
+        modelMode: state.modelMode,
       })
     );
   } catch {

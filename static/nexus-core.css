@@ -452,3 +452,7 @@ body.nexus-viewport::before {
     height: 100%;       /* fill the grid row / flex container */
     min-height: 0;      /* critical: allows flex/grid child to shrink & scroll */
 }
+.nexus-lora-container.is-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}

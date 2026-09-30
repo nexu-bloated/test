@@ -1,161 +1,113 @@
-# routes.py
-"""Flask Blueprint – all HTTP endpoints for the Nexus AI frontend.
-
-Every response uses the envelope::
-
-    {"ok": true,  "data": {…}}   on success
-    {"ok": false, "error": "…"}  on failure
-
-The frontend (static/js/api.js) is the only intended consumer.
-"""
-
-from __future__ import annotations
-import requests
-import logging
+import re
+import os
 import random
-from typing import Any, Dict, List
+import logging
+import urllib.parse
+from typing import List, Dict, Any
 
-from flask import Blueprint, Response, jsonify, render_template, request
+import requests
+from flask import Blueprint, request, jsonify, render_template, Response
 
 import config
-from services.comfyui_client import ComfyUIError, proxy_image
-from services import comfyui_client as comfy
 from workflows import get_workflow
 
+# 1. Import the whole module as 'comfy'
 from services import comfyui_client as comfy
-import os
-import re
-import urllib.parse
-import requests
-from flask import Blueprint, request, jsonify
+
+# 2. Import specific functions
+from services.comfyui_client import (
+    get_history as fetch_history,
+    get_queue as fetch_queue,
+    queue_prompt,
+)
 
 logger = logging.getLogger(__name__)
 
-api_bp = Blueprint("api", __name__)
-
-
-# ── helpers ──────────────────────────────────────────────────────────
-
-def _ok(data: Any = None, status: int = 200):
-    return jsonify({"ok": True, "data": data or {}}), status
-
-
-def _err(message: str, status: int = 400):
-    return jsonify({"ok": False, "error": message}), status
-
-
-def _tunnel_url() -> str:
-    """Extract and validate the tunnel URL from the JSON body."""
-    data = request.json or {}
-    url = (data.get("tunnel_url") or "").strip().rstrip("/")
-    if not url:
-        url = config.COMFYUI_BASE_URL
-    return url
-
-
-def _configured_civitai_folder(setting: str, fallback: str) -> str:
-    """Return only a ComfyUI model-folder name, never an arbitrary path."""
-    allowed = {"loras", "checkpoints", "diffusion_models"}
-    value = str(getattr(config, setting, fallback) or "").strip()
-    return value if value in allowed else fallback
-
+# 3. Safe fallbacks
+class ComfyUIError(Exception):
+    def __init__(self, message, status_code=500):
+        super().__init__(message)
+        self.status_code = status_code
 
 def _resolve_civitai_target_folder(data: dict) -> str:
-    """Choose the safe remote ComfyUI destination for a Civitai model."""
-    model_type = str(
-        data.get("model_type") or data.get("civitai_type") or data.get("type") or ""
-    ).lower()
-    lora_folder = _configured_civitai_folder("CIVITAI_LORA_FOLDER", "loras")
+    model_type = (data.get("model_type") or data.get("civitai_type") or "").lower()
+    if any(k in model_type for k in ("lora", "locon", "lycoris", "dora")):
+        return getattr(config, "CIVITAI_LORA_FOLDER", "loras")
+    if "checkpoint" in model_type:
+        return getattr(config, "CIVITAI_CHECKPOINT_FOLDER", "checkpoints")
+    return getattr(config, "CIVITAI_DIFFUSION_FOLDER", "diffusion_models")
 
-    if any(kind in model_type for kind in ("lora", "locon", "lycoris", "dora")):
-        return lora_folder
+def proxy_image(tunnel_url, filename, subfolder, img_type):
+    # Properly URL-encode the parameters so special characters like '%' don't break the request
+    params = urllib.parse.urlencode({
+        "filename": filename,
+        "subfolder": subfolder,
+        "type": img_type
+    })
+    url = f"{tunnel_url.rstrip('/')}/view?{params}"
+    return requests.get(url, stream=True, timeout=30)
 
-    if "checkpoint" not in model_type:
-        return lora_folder
+def _tunnel_url() -> str:
+    """Extract and validate the tunnel URL from the current request."""
+    data = request.get_json(silent=True) or {}
+    url = (
+        data.get("tunnel_url", "")
+        or request.args.get("tunnel_url", "")
+        or ""
+    ).strip().rstrip("/")
 
-    tags = data.get("tags", "")
-    if isinstance(tags, (list, tuple)):
-        tags = " ".join(str(tag) for tag in tags)
-    haystack = " ".join(
-        str(data.get(key) or "")
-        for key in (
-            "base_model", "model_name", "version_name", "file_name", "destination_hint"
-        )
-    )
-    haystack = f"{haystack} {tags}".lower()
-    patterns = [
-        pattern.strip().lower()
-        for pattern in str(getattr(config, "CIVITAI_ANIMA_PATTERNS", "anima")).split(",")
-        if pattern.strip()
-    ]
-    if any(pattern in haystack for pattern in patterns):
-        return _configured_civitai_folder("CIVITAI_DIFFUSION_FOLDER", "diffusion_models")
-    return _configured_civitai_folder("CIVITAI_CHECKPOINT_FOLDER", "checkpoints")
+    if not url:
+        raise ValueError("No tunnel_url provided in request.")
+    return url
 
-
-@api_bp.after_request
-def _cache_headers(response: Response) -> Response:
-    """Make API JSON responses non-cacheable, except proxied images."""
-    if request.path == "/api/image":
-        return response
-
-    response.headers.setdefault("Cache-Control", "no-store")
-    return response
-
-
-# ── pages ────────────────────────────────────────────────────────────
+api_bp = Blueprint("api", __name__)
 
 @api_bp.route("/")
 def index():
     return render_template("index.html")
 
+ANIMA_LORA_TAG_RE = re.compile(
+    r"<lora:([^<>:\r\n]+):(-?\d+(?:\.\d+)?)(?::(-?\d+(?:\.\d+)?))?>",
+    re.IGNORECASE,
+)
 
-# ── health / config ──────────────────────────────────────────────────
+def _ok(data, status=200):
+    return jsonify({"ok": True, "data": data}), status
 
-@api_bp.route("/api/health", methods=["GET"])
-def health():
-    tunnel = request.args.get("tunnel_url", "").strip().rstrip("/")
-    if not tunnel:
-        tunnel = config.COMFYUI_BASE_URL
-
-    alive = comfy.health_check(tunnel) if tunnel else False
-    return _ok({"backend": True, "comfyui": alive, "tunnel": bool(tunnel)})
-
+def _err(msg, status=400):
+    return jsonify({"ok": False, "error": msg}), status
 
 @api_bp.route("/api/config", methods=["GET"])
 def frontend_config():
     """Expose safe defaults so the frontend can pre-fill the form."""
-    return _ok(
-        {
-            "default_checkpoint": config.DEFAULT_CHECKPOINT,
-            "default_vae": config.DEFAULT_VAE,
-            "default_clip": config.DEFAULT_CLIP,
-            "default_sampler": config.DEFAULT_SAMPLER,
-            "default_scheduler": config.DEFAULT_SCHEDULER,
-            "default_steps": config.DEFAULT_STEPS,
-            "default_cfg": config.DEFAULT_CFG,
-            "default_width": config.DEFAULT_WIDTH,
-            "default_height": config.DEFAULT_HEIGHT,
-            "default_batch_size": config.DEFAULT_BATCH_SIZE,
-            "default_batch_count": config.DEFAULT_BATCH_COUNT,
-            "default_hires_scale": config.DEFAULT_HIRES_SCALE,
-            "default_hires_steps": config.DEFAULT_HIRES_STEPS,
-            "default_hires_cfg": config.DEFAULT_HIRES_CFG,
-            "default_hires_sampler": config.DEFAULT_HIRES_SAMPLER,
-            "default_hires_denoise": config.DEFAULT_HIRES_DENOISE,
-            "default_hires_sharpen_sigma": config.DEFAULT_HIRES_SHARPEN_SIGMA,
-            "active_workflow": config.ACTIVE_WORKFLOW,
-            "max_steps": config.MAX_STEPS,
-            "max_cfg": config.MAX_CFG,
-            "max_batch_size": config.MAX_BATCH_SIZE,
-            "max_batch_count": config.MAX_BATCH_COUNT,
-            "max_loras": config.MAX_LORAS,
-        }
-    )
-
+    return _ok({
+        "available_workflows": ["anima", "anima_2_9"],
+        "model_modes": {
+            "anima": {
+                "label": "Anima Base",
+                "checkpoint": config.DEFAULT_CHECKPOINT,
+                "sampler": config.DEFAULT_SAMPLER,
+                "scheduler": config.DEFAULT_SCHEDULER,
+                "cfg": config.DEFAULT_CFG,
+                "vae": config.DEFAULT_VAE,
+                "clip": config.DEFAULT_CLIP,
+            },
+            "anima_2_9": {
+                "label": "Anima 2.9B",
+                "checkpoint": getattr(config, "DEFAULT_ANIMA_2_9_CHECKPOINT", "anima29B_v10_int8.safetensors"),
+                "sampler": getattr(config, "DEFAULT_ANIMA_2_9_SAMPLER", "er_sde"),
+                "scheduler": "simple",
+                "cfg": getattr(config, "DEFAULT_ANIMA_2_9_CFG", 4.0),
+                "vae": "qwen_image_vae.safetensors",
+                "clip": "qwen_3_06b_base.safetensors",
+            },
+        },
+        "default_checkpoint": config.DEFAULT_CHECKPOINT,
+        "default_vae": config.DEFAULT_VAE,
+        "default_clip": config.DEFAULT_CLIP,
+    })
 
 # ── model discovery ──────────────────────────────────────────────────
-
 @api_bp.route("/api/checkpoints", methods=["POST"])
 def checkpoints():
     try:
@@ -166,23 +118,21 @@ def checkpoints():
         return _ok({"checkpoints": comfy.get_checkpoints(url)})
     except ComfyUIError as exc:
         return _err(str(exc), exc.status_code)
-
+    except Exception as exc:
+        return _err(str(exc), 500)
 
 @api_bp.route("/api/loras", methods=["POST"])
 def loras():
     try:
         url = _tunnel_url()
         data = request.json or {}
-
-        # Force cache bypass when refresh=true
         if bool(data.get("refresh", False)):
             comfy.invalidate_object_info_cache(url)
-
         return _ok({"loras": comfy.get_loras(url)})
     except ComfyUIError as exc:
         return _err(str(exc), exc.status_code)
-
-
+    except Exception as exc:
+        return _err(str(exc), 500)
 
 @api_bp.route("/api/vaes", methods=["POST"])
 def vaes():
@@ -191,7 +141,8 @@ def vaes():
         return _ok({"vaes": comfy.get_vaes(url)})
     except ComfyUIError as exc:
         return _err(str(exc), exc.status_code)
-
+    except Exception as exc:
+        return _err(str(exc), 500)
 
 @api_bp.route("/api/clips", methods=["POST"])
 def clips():
@@ -200,7 +151,8 @@ def clips():
         return _ok({"clips": comfy.get_clips(url)})
     except ComfyUIError as exc:
         return _err(str(exc), exc.status_code)
-
+    except Exception as exc:
+        return _err(str(exc), 500)
 
 @api_bp.route("/api/samplers", methods=["POST"])
 def samplers():
@@ -210,24 +162,29 @@ def samplers():
         return _ok({"samplers": s, "schedulers": sc})
     except ComfyUIError as exc:
         return _err(str(exc), exc.status_code)
-
+    except Exception as exc:
+        return _err(str(exc), 500)
 
 # ── generation ───────────────────────────────────────────────────────
-
 @api_bp.route("/api/generate", methods=["POST"])
 def generate():
     data = request.json or {}
     tunnel_url = (data.get("tunnel_url") or "").strip().rstrip("/")
     if not tunnel_url:
         tunnel_url = config.COMFYUI_BASE_URL
-
     if not tunnel_url:
         return _err("Valid Tunnel URL is required.", 400)
 
     client_id = data.get("client_id", "nexus_ui")
 
     try:
-        wf = get_workflow()  # uses config.ACTIVE_WORKFLOW
+        requested_workflow = (
+            data.get("workflow_name")
+            or data.get("model_mode")
+            or ""
+        ).strip().lower()
+
+        wf = get_workflow(requested_workflow or None)
         params = wf.prepare(data)
 
         batch_count: int = params["batch_count"]
@@ -235,7 +192,6 @@ def generate():
         base_seed: int = params["seed"]
 
         all_results: List[dict] = []
-
         for batch_idx in range(batch_count):
             if seed_mode == "increment":
                 current_seed = base_seed + batch_idx
@@ -259,9 +215,7 @@ def generate():
         logger.exception("Unexpected generation error")
         return _err(f"Generation failed: {exc}", 500)
 
-
 # ── history ──────────────────────────────────────────────────────────
-
 @api_bp.route("/api/history", methods=["POST"])
 def history():
     try:
@@ -269,7 +223,6 @@ def history():
         raw = comfy.get_history(url)
 
         images: List[dict] = []
-
         for prompt_id, entry in reversed(list(raw.items())):
             outputs = entry.get("outputs", {})
             workflow_cfg = entry.get("prompt", [None, None, {}])[2]
@@ -287,6 +240,7 @@ def history():
                 "sampler": "euler_ancestral",
                 "scheduler": "simple",
                 "prompt_id": prompt_id,
+                "workflow_name": "",
             }
 
             if isinstance(workflow_cfg, dict):
@@ -301,7 +255,7 @@ def history():
                         meta["sampler"] = inputs.get("sampler_name", meta["sampler"])
                         meta["scheduler"] = inputs.get("scheduler", meta["scheduler"])
 
-                    elif c_type == "EmptyLatentImage":
+                    elif c_type in ("EmptyLatentImage", "AnimaLatentImage"):
                         meta["width"] = inputs.get("width", meta["width"])
                         meta["height"] = inputs.get("height", meta["height"])
 
@@ -314,26 +268,45 @@ def history():
                     elif c_type == "UNETLoader":
                         meta["ckpt"] = inputs.get("unet_name", "")
 
+                    elif c_type == "AnimaBoosterLoader":
+                        meta["ckpt"] = inputs.get("model_name", "")
+
                     elif c_type == "LoraLoader":
-                        meta["loras"].append(
-                            {
-                                "name": inputs.get("lora_name", ""),
-                                "weight": inputs.get("strength_model", 1.0),
-                            }
-                        )
+                        meta["loras"].append({
+                            "name": inputs.get("lora_name", ""),
+                            "weight": inputs.get("strength_model", 1.0),
+                        })
+
+                    elif c_type == "AnimaLoRARemapTagLoader":
+                        meta["workflow_name"] = "anima_2_9"
+                        text = str(inputs.get("text", ""))
+                        for match in ANIMA_LORA_TAG_RE.finditer(text):
+                            name = match.group(1).strip()
+                            try:
+                                weight = float(match.group(2)) if match.group(2) else 1.0
+                            except (TypeError, ValueError):
+                                weight = 1.0
+                            try:
+                                clip_weight = float(match.group(3)) if match.group(3) else weight
+                            except (TypeError, ValueError):
+                                clip_weight = weight
+                            if name:
+                                meta["loras"].append({
+                                    "name": name,
+                                    "weight": weight,
+                                    "clip_weight": clip_weight,
+                                })
 
             for output in outputs.values():
                 if "images" in output:
                     for img in output["images"]:
                         if img.get("type") == "output":
-                            images.append(
-                                {
-                                    "filename": img["filename"],
-                                    "subfolder": img.get("subfolder", ""),
-                                    "type": img["type"],
-                                    "meta": meta,
-                                }
-                            )
+                            images.append({
+                                "filename": img["filename"],
+                                "subfolder": img.get("subfolder", ""),
+                                "type": img["type"],
+                                "meta": meta,
+                            })
 
         return _ok({"images": images})
 
@@ -343,9 +316,7 @@ def history():
         logger.exception("History error")
         return _err(f"History fetch failed: {exc}", 500)
 
-
 # ── image proxy ──────────────────────────────────────────────────────
-
 @api_bp.route("/api/image", methods=["GET"])
 def image_proxy():
     tunnel_url = request.args.get("tunnel_url", "").strip().rstrip("/")
@@ -355,22 +326,16 @@ def image_proxy():
 
     if not tunnel_url:
         tunnel_url = config.COMFYUI_BASE_URL
-
     if not tunnel_url:
         return _err("No tunnel URL.", 400)
-
     if not filename:
         return _err("Filename required.", 400)
 
     try:
         resp = proxy_image(tunnel_url, filename, subfolder, img_type)
-
         headers = {
-            # Generated images are immutable. Cache aggressively.
             "Cache-Control": "public, max-age=86400, immutable",
         }
-
-        # Pass through useful caching/streaming metadata when present.
         for header in ("Content-Length", "ETag", "Last-Modified", "Accept-Ranges"):
             value = resp.headers.get(header)
             if value:
@@ -381,42 +346,33 @@ def image_proxy():
             content_type=resp.headers.get("Content-Type", "image/png"),
             headers=headers,
         )
-
     except ComfyUIError as exc:
         return _err(str(exc), exc.status_code)
-
+    except Exception as exc:
+        return _err(str(exc), 500)
 
 # ── queue ────────────────────────────────────────────────────────────
-
-@api_bp.route("/api/queue", methods=["POST"])
+@api_bp.route("/api/queue", methods=["GET", "POST"])
 def queue():
     try:
-        url = _tunnel_url()
-        q = comfy.get_queue(url)
+        tunnel_url = _tunnel_url()
+        q = fetch_queue(tunnel_url)
+        return _ok(q)
+    except ValueError as exc:
+        return _err(str(exc), 400)
+    except Exception as exc:
+        return _err(str(exc), 500)
 
-        running = len(q.get("queue_running", []))
-        pending = len(q.get("queue_pending", []))
-
-        return _ok({"running": running, "pending": pending})
-
-    except ComfyUIError as exc:
-        return _err(str(exc), exc.status_code)
-# ── Civitai search ─────────────────────────────────────────────────────────────
-# routes.py
-# Update civitai_search to handle multiple 'tag' parameters
-
+# ── Civitai search ───────────────────────────────────────────────────
 @api_bp.route("/api/civitai/search", methods=["GET"])
 def civitai_search():
-    """
-    Proxy for Civitai model search.
-    """
+    """Proxy for Civitai model search."""
     try:
         limit = min(max(int(request.args.get("limit", 24) or 24), 1), 100)
     except ValueError:
         limit = 24
 
     params: List[tuple] = [("limit", limit)]
-
     for key in ("query", "username", "sort", "period", "cursor", "nsfw"):
         value = (request.args.get(key) or "").strip()
         if value:
@@ -425,7 +381,6 @@ def civitai_search():
     types = [t.strip() for t in request.args.getlist("types") if t.strip()]
     if not types:
         types = ["LORA"]
-
     for t in types:
         params.append(("types", t))
 
@@ -433,7 +388,6 @@ def civitai_search():
     for bm in base_models:
         params.append(("baseModels", bm))
 
-    # Handle multiple tags
     tags = [t.strip() for t in request.args.getlist("tag") if t.strip()]
     for t in tags:
         params.append(("tag", t))
@@ -483,23 +437,18 @@ def civitai_download():
 
     if not tunnel_url:
         return _err("tunnel_url is required.", 400)
-
     if not download_url and not fallback_url:
         return _err("download_url is required.", 400)
 
     url_to_use = download_url or fallback_url
-
-    # Normalize relative URLs
     if url_to_use.startswith("/"):
         url_to_use = f"https://civitai.com{url_to_use}"
 
-    # Basic validation: must be civitai
     parsed = urllib.parse.urlparse(url_to_use)
     hostname = (parsed.hostname or "").lower()
     if hostname != "civitai.com" and not hostname.endswith(".civitai.com"):
         return _err("Only Civitai download URLs are supported.", 400)
 
-    # Sanitize file_name
     if not file_name:
         model_name = (data.get("model_name") or "civitai_lora").strip()
         file_name = re.sub(r'[^\w\-_\. ]', '_', model_name) + ".safetensors"
@@ -518,8 +467,7 @@ def civitai_download():
     is_lora = any(
         kind in model_type.lower() for kind in ("lora", "locon", "lycoris", "dora")
     )
-    # Preserve the established LoRA prompt exactly. Checkpoints require the
-    # destination-aware node installed on the remote ComfyUI instance.
+
     if is_lora or not model_type:
         prompt = {
             "1": {
@@ -630,6 +578,7 @@ def civitai_download_status():
                     "filename": None,
                     "error": None
                 })
+
             elif status_str == "error":
                 msgs = status_info.get("messages", [])
                 error_msg = "Download failed on remote machine."
@@ -654,11 +603,9 @@ def civitai_download_status():
             queue_data = queue_resp.json()
             running = queue_data.get("queue_running", [])
             pending = queue_data.get("queue_pending", [])
-
             for item in running:
                 if len(item) > 1 and item[1] == prompt_id:
                     return _ok({"status": "running", "prompt_id": prompt_id, "filename": None, "error": None})
-
             for item in pending:
                 if len(item) > 1 and item[1] == prompt_id:
                     return _ok({"status": "pending", "prompt_id": prompt_id, "filename": None, "error": None})
@@ -671,6 +618,7 @@ def civitai_download_status():
         "filename": None,
         "error": None
     })
+
 @api_bp.route("/api/loras/trigger-words", methods=["POST"])
 def lora_trigger_words():
     data = request.json or {}
@@ -686,7 +634,7 @@ def lora_trigger_words():
         resp = requests.post(
             f"{url}/nexus/lora_trigger_words",
             json={"lora_name": name},
-            timeout=120,  # first call may SHA256 a big file
+            timeout=120,
         )
     except requests.RequestException as exc:
         return _err(f"Could not reach ComfyUI tunnel: {exc}", 502)

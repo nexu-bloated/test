@@ -11,9 +11,12 @@ from typing import Dict, Type
 
 from workflows.workflow_blueprint import WorkflowBlueprint
 from workflows.workflow import AnimaWorkflow
+from workflows.anima_2_9 import Anima29Workflow
+
 
 _REGISTRY: Dict[str, Type[WorkflowBlueprint]] = {
     "anima": AnimaWorkflow,
+    "anima_2_9": Anima29Workflow,
 }
 
 

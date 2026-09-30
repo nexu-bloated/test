@@ -94,3 +94,10 @@ CIVITAI_ANIMA_PATTERNS: str = os.getenv(
     "CIVITAI_ANIMA_PATTERNS",
     "anima,animaxl,aam xl anim anima",
 )
+# ── Anima 2.9B defaults ─────────────────────────────────────────────
+DEFAULT_ANIMA_2_9_CHECKPOINT: str = os.getenv("DEFAULT_ANIMA_2_9_CHECKPOINT", "anima29B_v10_int8.safetensors")
+DEFAULT_ANIMA_2_9_SAMPLER: str = os.getenv("DEFAULT_ANIMA_2_9_SAMPLER", "er_sde")
+DEFAULT_ANIMA_2_9_CFG: float = _env_float("DEFAULT_ANIMA_2_9_CFG", 4.0)
+DEFAULT_ANIMA_2_9_TEACACHE_THRESHOLD: float = _env_float("DEFAULT_ANIMA_2_9_TEACACHE_THRESHOLD", 0.25)
+DEFAULT_ANIMA_2_9_TEACACHE_VERSION: str = os.getenv("DEFAULT_ANIMA_2_9_TEACACHE_VERSION", "v2 (Standard Precise)")
+DEFAULT_ANIMA_2_9_REMAP_MANIFEST: str = os.getenv("DEFAULT_ANIMA_2_9_REMAP_MANIFEST", "expand_manifest_preview_v1.json")
