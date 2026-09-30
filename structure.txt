@@ -1,0 +1,58 @@
+Folder PATH listing
+Volume serial number is F427-3BF4
+C:.
+|   .env.example
+|   app.py
+|   config.py
+|   patchnote.txt
+|   req.txt
+|   routes.py
+|   run.bat
+|   structure.txt
+|   structure1.txt
+|
++---services
+|   |   comfyui_client.py
+|   |   __init__.py
+|   |
+|   \---__pycache__
+|           comfyui_client.cpython-313.pyc
+|           __init__.cpython-313.pyc
+|
++---static
+|   |   nexus-core.css
+|   |
+|   +---css
+|   |       nexus-ui.css
+|   |
+|   \---js
+|       |   api.js
+|       |   imageCache.js
+|       |   main.js
+|       |   state.js
+|       |   ui.js
+|       |
+|       \---components
+|               civitaiSearch.js
+|               generationForm.js
+|               imagePreview.js
+|               loraTriggers.js
+|               promptEditor.js
+|
++---templates
+|       design_language.txt
+|       index.html
+|
++---workflows
+|   |   workflow.py
+|   |   workflow_blueprint.py
+|   |   __init__.py
+|   |
+|   \---__pycache__
+|           workflow.cpython-313.pyc
+|           workflow_blueprint.cpython-313.pyc
+|           __init__.cpython-313.pyc
+|
+\---__pycache__
+        config.cpython-313.pyc
+        routes.cpython-313.pyc

@@ -1,0 +1,886 @@
+/* static/css/nexus-ui.css */
+/**
+ * Nexus UI extension layer.
+ * Loaded after nexus-core.css so it can safely adapt sizing,
+ * quick-settings layout, modals, and button feel without rewriting
+ * the original design system.
+ */
+
+:root {
+  --nexus-ui-btn-min: 40px;
+  --nexus-ui-btn-min-small: 36px;
+  --nexus-ui-generate-min: 52px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.nexus-app-padding {
+  padding: 1.5rem;
+}
+
+/* ── Buttons: larger, more comfortable ───────────────────────────── */
+.nexus-btn {
+  min-height: var(--nexus-ui-btn-min);
+  padding: 0.55rem 0.95rem;
+  font-size: 12px;
+  line-height: 1;
+  gap: 0.45rem;
+}
+
+.nexus-btn-ghost {
+  min-height: var(--nexus-ui-btn-min-small);
+  padding: 0.5rem 0.75rem;
+  font-size: 11px;
+}
+
+.nexus-btn:focus-visible,
+.nexus-input:focus-visible,
+.nexus-select:focus-visible,
+.nexus-textarea:focus-visible,
+.nexus-range:focus-visible {
+  outline: 2px solid var(--nexus-accent-bright);
+  outline-offset: 2px;
+}
+
+/* ── Generate button: prominent, older-html inspired ─────────────── */
+.nexus-generate-btn {
+  width: 100%;
+  min-height: var(--nexus-ui-generate-min);
+  padding: 0.9rem 1.8rem;
+  font-size: 13px;
+  letter-spacing: 0.22em;
+  box-shadow: 0 0 24px rgba(4, 102, 200, 0.18);
+}
+
+.nexus-generate-btn.is-generating {
+  cursor: progress;
+  opacity: 0.82;
+  animation: nexus-pulse 1s ease infinite;
+}
+
+.nexus-generate-btn:disabled {
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ── Titlebar / quick settings ───────────────────────────────────── */
+.nexus-titlebar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.65rem 0.85rem;
+  margin-bottom: 1rem;
+}
+
+.nexus-titlebar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.nexus-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: #e8e8f0;
+}
+
+.nexus-titlebar-status {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.nexus-titlebar-status .nexus-btn-ghost {
+  min-height: 30px;
+  padding: 0.4rem 0.6rem;
+}
+
+.nexus-status-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nexus-quickbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.6rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid rgba(42, 58, 88, 0.55);
+}
+
+.nexus-quick-group {
+  display: flex;
+  align-items: center;
+  flex: 1 1 10rem;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.nexus-quick-group--resolution {
+  flex-basis: 12rem;
+}
+
+.nexus-quick-group--generate {
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
+.nexus-label--compact {
+  margin-bottom: 0;
+  font-size: 9px;
+}
+
+.nexus-quickbar .nexus-label--compact {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.nexus-select--compact,
+.nexus-input--compact {
+  padding: 0.5rem 0.6rem;
+  font-size: 12px;
+  min-height: 38px;
+}
+
+.nexus-quickbar .nexus-select--compact,
+.nexus-quickbar .nexus-input--compact {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 0;
+  min-height: 32px;
+  padding: 0.38rem 1.7rem 0.38rem 0.55rem;
+  font-size: 12px;
+}
+
+.nexus-quickbar .nexus-range {
+  flex: 1 1 5rem;
+  min-width: 5rem;
+}
+
+/* ── Seed switch ─────────────────────────────────────────────────── */
+.nexus-seed-switch {
+  display: inline-flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 1px solid var(--nexus-border-dim);
+  border-radius: var(--nexus-radius);
+  overflow: hidden;
+}
+
+.nexus-seed-btn {
+  flex: 1;
+  border: none;
+  border-radius: 0;
+  min-height: 30px;
+  padding: 0.35rem 0.55rem;
+}
+
+.nexus-seed-btn.is-active {
+  background: var(--nexus-accent-subtle);
+  color: #ffffff;
+  border-color: var(--nexus-border-hover);
+}
+
+.nexus-seed-value {
+  flex: 0 1 4.5rem;
+  margin-top: 0;
+  min-height: 30px;
+  padding: 0.35rem 0.5rem;
+}
+
+.nexus-quickbar .nexus-generate-btn {
+  width: auto;
+  min-height: 34px;
+  padding: 0.55rem 1rem;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+}
+
+/* ── Sidebar compact controls ────────────────────────────────────── */
+.nexus-sidebar-section {
+  padding: 1rem;
+}
+
+.nexus-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.nexus-inline-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.nexus-btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.5rem;
+}
+
+.nexus-control-row {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.75rem;
+}
+
+.nexus-control-row:first-of-type {
+  margin-top: 0.35rem;
+}
+
+.nexus-control-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.nexus-range--compact {
+  height: 3px;
+}
+
+.nexus-lora-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.nexus-lora-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.nexus-lora-weight {
+  width: 76px;
+}
+
+.nexus-hires-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+/* ── Gallery ─────────────────────────────────────────────────────── */
+.nexus-gallery-panel {
+  min-height: 60vh;
+}
+
+.nexus-gallery-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.nexus-gallery-hint {
+  margin-bottom: 0.75rem;
+}
+
+.nexus-gallery-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 4rem 1rem;
+  color: var(--nexus-text-slate);
+}
+
+.nexus-drop-zone {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 18, 51, 0.78);
+  backdrop-filter: blur(5px);
+  pointer-events: none;
+}
+
+.nexus-drop-zone.is-visible {
+  display: flex;
+}
+
+.nexus-drop-zone__content {
+  padding: 2rem 2.5rem;
+  color: var(--nexus-text-bright);
+  text-align: center;
+  border: 2px dashed var(--nexus-accent);
+  border-radius: var(--nexus-radius);
+  background: var(--nexus-bg-panel);
+}
+
+.nexus-inspect-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  width: min(92vw, 920px);
+  margin-top: 0.5rem;
+  color: var(--nexus-text-slate);
+}
+
+.nexus-inspect-meta span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Expand Editor ───────────────────────────────────────────────── */
+.nexus-editor-expanded .nexus-sidebar-span {
+  display: none;
+}
+
+.nexus-editor-expanded .nexus-main-span {
+  grid-column: 1 / -1;
+}
+
+.nexus-editor-expanded .nexus-gallery-grid {
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
+/* ── Modals ──────────────────────────────────────────────────────── */
+.nexus-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9500;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 18, 51, 0.72);
+  backdrop-filter: blur(6px);
+}
+
+.nexus-modal-backdrop.is-open {
+  display: flex;
+}
+
+.nexus-modal {
+  width: min(360px, 100%);
+  background: linear-gradient(135deg, var(--nexus-bg-panel) 0%, var(--nexus-bg-void-blue) 100%);
+  border: 1px solid var(--nexus-border-dim);
+  border-radius: var(--nexus-radius);
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.45);
+}
+
+.nexus-modal--wide {
+  width: min(560px, 100%);
+}
+
+.nexus-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.8rem 0.9rem;
+  border-bottom: 1px solid rgba(42, 58, 88, 0.65);
+}
+
+.nexus-modal-body {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.9rem;
+}
+
+.nexus-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.75rem 0.9rem;
+  border-top: 1px solid rgba(42, 58, 88, 0.65);
+}
+
+.nexus-modal-error {
+  color: var(--nexus-danger);
+  min-height: 12px;
+}
+
+.nexus-remix-pre {
+  margin: 0;
+  max-height: 50vh;
+  overflow: auto;
+  font-family: var(--nexus-font-mono);
+  font-size: 11px;
+  color: var(--nexus-text-steel);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── Inspect modal ───────────────────────────────────────────────── */
+.nexus-inspect-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9400;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: var(--nexus-bg-void-blue);
+  backdrop-filter: blur(8px);
+}
+
+.nexus-inspect-backdrop.is-open {
+  display: flex;
+}
+
+.nexus-inspect-shell {
+  position: relative;
+  max-width: 90vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.nexus-inspect-img {
+  max-width: 90vw;
+  max-height: 75vh;
+  border-radius: var(--nexus-radius);
+  border: 1px solid var(--nexus-border-dim);
+}
+
+.nexus-inspect-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.nexus-inspect-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+}
+
+.nexus-inspect-prev {
+  left: -3.2rem;
+}
+
+.nexus-inspect-next {
+  right: -3.2rem;
+}
+
+.nexus-inspect-hint {
+  text-align: center;
+}
+
+/* ── Responsive ──────────────────────────────────────────────────── */
+@media (max-width: 1200px) {
+  .nexus-quick-group {
+    flex-basis: 13rem;
+  }
+
+  .nexus-quick-group--resolution {
+    flex-basis: 13rem;
+  }
+
+  .nexus-quick-group--generate {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 720px) {
+  .nexus-app-padding {
+    padding: 1rem;
+  }
+
+  .nexus-quick-group {
+    flex-basis: calc(50% - 0.3rem);
+  }
+
+  .nexus-quick-group--resolution,
+  .nexus-quick-group--generate {
+    flex-basis: 100%;
+  }
+
+  .nexus-quick-group--generate {
+    justify-content: stretch;
+  }
+
+  .nexus-quickbar .nexus-generate-btn {
+    width: 100%;
+  }
+
+  .nexus-inspect-prev {
+    left: 0.25rem;
+  }
+
+  .nexus-inspect-next {
+    right: 0.25rem;
+  }
+}
+
+@media (max-width: 560px) {
+  .nexus-quick-group {
+    flex-basis: 100%;
+  }
+
+  .nexus-titlebar-row,
+  .nexus-titlebar-status {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+/* ── Expanded prompt editor support ─────────────────────────────── */
+
+.nexus-prompt-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.35rem;
+}
+
+.nexus-prompt-header--spaced {
+  margin-top: 0.9rem;
+}
+
+.nexus-prompt-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.nexus-prompt-label {
+  margin-bottom: 0;
+}
+
+.nexus-prompt-label--positive {
+  color: var(--nexus-accent-bright);
+}
+
+.nexus-prompt-label--negative {
+  color: rgba(239, 68, 68, 0.72);
+}
+
+.nexus-icon-btn {
+  min-height: 30px;
+  min-width: 30px;
+  padding: 0.25rem 0.5rem;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.nexus-prompt-modal-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.nexus-prompt-modal-textarea {
+  min-height: 45vh;
+  max-height: 70vh;
+  resize: vertical;
+  font-size: 0.95rem;
+  line-height: 1.65;
+}
+
+.nexus-prompt-modal-textarea.is-negative {
+  color: var(--nexus-text-grey);
+}
+
+/* In case your current CSS does not already define a wide modal variant */
+.nexus-modal--wide {
+  width: min(720px, 100%);
+}
+
+@media (max-width: 560px) {
+  .nexus-prompt-header {
+    flex-wrap: wrap;
+  }
+
+  .nexus-prompt-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+/* ── Civitai search modal ─────────────────────────────────────────────────── */
+.nexus-modal--civitai {
+  width: min(1080px, 100%);
+}
+
+.nexus-modal-title {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--nexus-text-bright);
+}
+
+#civitaiSearchModal .nexus-modal-body {
+  gap: 0.75rem;
+  max-height: min(78vh, 720px);
+  overflow: auto;
+}
+
+.nexus-civitai-toolbar {
+  display: grid;
+  grid-template-columns:
+    minmax(240px, 2fr)
+    repeat(4, minmax(120px, 1fr))
+    auto
+    auto;
+  gap: 0.5rem;
+  align-items: end;
+}
+
+.nexus-civitai-field {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.nexus-civitai-field--checkbox {
+  align-items: end;
+  padding-bottom: 0.45rem;
+}
+
+.nexus-civitai-field--checkbox input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--nexus-accent);
+}
+
+.nexus-civitai-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 0.75rem;
+  min-height: 180px;
+}
+
+.nexus-civitai-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.7rem;
+  border: 1px solid var(--nexus-border-dim);
+  border-radius: var(--nexus-radius);
+  background: var(--nexus-bg-panel);
+}
+
+.nexus-civitai-thumb {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: var(--nexus-radius);
+  border: 1px solid var(--nexus-border-dim);
+  background: var(--nexus-bg-void-blue);
+}
+
+.nexus-civitai-thumb-empty {
+  display: grid;
+  place-items: center;
+  color: var(--nexus-text-slate);
+  font-size: 24px;
+}
+
+.nexus-civitai-thumb.is-nsfw {
+  filter: blur(18px);
+}
+
+.nexus-civitai-name {
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nexus-civitai-meta,
+.nexus-civitai-creator {
+  font-size: 11px;
+  color: var(--nexus-text-slate);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nexus-civitai-actions {
+  display: flex;
+  gap: 0.45rem;
+  margin-top: auto;
+}
+
+.nexus-civitai-actions .nexus-btn {
+  min-height: 34px;
+  font-size: 11px;
+}
+
+.nexus-civitai-actions a.nexus-btn {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nexus-civitai-status {
+  min-height: 16px;
+  color: var(--nexus-text-slate);
+  font-size: 11px;
+}
+
+.nexus-civitai-empty {
+  grid-column: 1 / -1;
+  padding: 3rem 1rem;
+  text-align: center;
+  color: var(--nexus-text-slate);
+}
+
+@media (max-width: 1100px) {
+  .nexus-civitai-toolbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .nexus-civitai-field--query {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 680px) {
+  .nexus-civitai-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .nexus-civitai-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  }
+}
+
+/* ── Civitai tags & infinite scroll ─────────────────────────────────────────── */
+.nexus-civitai-field--tags {
+  grid-column: 1 / -1;
+}
+
+.nexus-civitai-tags {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+
+.nexus-civitai-tags::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
+
+.nexus-civitai-tag {
+  flex: 0 0 auto;
+  min-height: 28px;
+  padding: 0.3rem 0.75rem;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.nexus-civitai-tag.is-active {
+  background: var(--nexus-accent);
+  color: #ffffff;
+  border-color: var(--nexus-accent);
+}
+
+.nexus-civitai-sentinel {
+  height: 1px;
+  width: 100%;
+  margin-top: 1rem;
+}
+
+.nexus-civitai-load-more {
+  text-align: center;
+  padding: 1rem 0;
+  font-size: 11px;
+  color: var(--nexus-text-slate);
+  min-height: 24px;
+}
+
+.nexus-civitai-load-more.is-loading {
+  color: var(--nexus-accent-bright);
+}
+
+.nexus-civitai-load-more.is-error {
+  color: var(--nexus-danger);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.nexus-lora-triggers { display: flex; flex-direction: column; gap: .4rem; margin-top: .5rem; }
+.nexus-lora-triggers-label { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; opacity: .7; }
+.nexus-lora-triggers-chips { display: flex; flex-wrap: wrap; gap: .4rem; }
+
+/* Make the whole form a single horizontal row */
+#civitaiSearchModal .nexus-civitai-form {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Treat the existing rows as if their contents
+   were directly inside the parent flex container */
+#civitaiSearchModal .nexus-civitai-row--search,
+#civitaiSearchModal .nexus-civitai-row--filters,
+#civitaiSearchModal .nexus-civitai-row--tags {
+  display: contents;
+}
+
+/* Search query */
+#civitaiSearchModal .nexus-civitai-field--query {
+  flex: 1 1 250px;
+}
+
+/* Search button */
+#civitaiSearchModal .nexus-civitai-field--submit {
+  flex: 0 0 auto;
+}
+
+/* Filters */
+#civitaiSearchModal .nexus-civitai-row--filters .nexus-civitai-field {
+  flex: 1 1 140px;
+}
+
+/* Checkbox */
+#civitaiSearchModal .nexus-civitai-field--checkbox {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+}
+
+/* Tags */
+#civitaiSearchModal .nexus-civitai-field--tags {
+  flex: 1 1 200px;
+}
+
+/* Tags inside the field */
+#civitaiSearchModal .nexus-civitai-tags {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+}

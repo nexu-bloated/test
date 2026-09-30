@@ -1,0 +1,999 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nexus AI - Core Engine</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  />
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='nexus-core.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/nexus-ui.css') }}" />
+</head>
+<body class="nexus-viewport">
+  <div class="nexus-wrapper nexus-app-padding">
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         MAIN TITLE FRAME + QUICK SETTINGS BAR
+    ════════════════════════════════════════════════════════════════ -->
+    <header class="nexus-panel nexus-panel--accented nexus-titlebar">
+      <div class="nexus-titlebar-row">
+        <div class="nexus-brand">
+          <span aria-hidden="true">⬡</span>
+          <span>Nexus AI</span>
+          <span class="nexus-telemetry-text">Core Engine v2.1</span>
+        </div>
+
+        <div class="nexus-titlebar-status">
+          <span class="nexus-telemetry-text" id="queueLabel">Queue: 0</span>
+
+          <span class="nexus-status-group">
+            <span class="nexus-status-dot" id="statusDot"></span>
+            <span class="nexus-telemetry-text" id="statusLabel">Offline</span>
+          </span>
+
+          <button
+            type="button"
+            id="btnExpandEditor"
+            class="nexus-btn nexus-btn-ghost"
+            aria-pressed="false"
+          >
+            ⤢ Expand Editor
+          </button>
+        </div>
+      </div>
+
+      <div class="nexus-quickbar" aria-label="Quick generation controls">
+        <div class="nexus-quick-group nexus-quick-group--resolution">
+          <label class="nexus-label nexus-label--compact" for="selResolution">
+            Resolution
+          </label>
+          <select
+            id="selResolution"
+            class="nexus-select nexus-select--compact"
+            aria-label="Resolution preset"
+          ></select>
+        </div>
+
+        <div class="nexus-quick-group">
+          <label class="nexus-label nexus-label--compact" for="selSampler">
+            Sampler
+          </label>
+          <select id="selSampler" class="nexus-select nexus-select--compact" aria-label="Sampler">
+            <option value="euler_ancestral">euler_ancestral</option>
+            <option value="euler">euler</option>
+            <option value="er_sde">er_sde</option>
+            <option value="dpmpp_2m_sde_gpu">dpmpp_2m_sde_gpu</option>
+            <option value="dpmpp_2m">dpmpp_2m</option>
+            <option value="dpmpp_sde">dpmpp_sde</option>
+            <option value="dpmpp_3m_sde">dpmpp_3m_sde</option>
+            <option value="ddim">ddim</option>
+            <option value="uni_pc">uni_pc</option>
+            <option value="lms">lms</option>
+            <option value="heun">heun</option>
+          </select>
+        </div>
+
+        <div class="nexus-quick-group">
+          <label class="nexus-label nexus-label--compact" for="selScheduler">
+            Scheduler
+          </label>
+          <select id="selScheduler" class="nexus-select nexus-select--compact" aria-label="Scheduler">
+            <option value="simple">simple</option>
+            <option value="normal">normal</option>
+            <option value="karras">karras</option>
+            <option value="exponential">exponential</option>
+            <option value="sgm_uniform">sgm_uniform</option>
+            <option value="beta">beta</option>
+          </select>
+        </div>
+
+        <div class="nexus-quick-group">
+          <span class="nexus-label nexus-label--compact" id="seedModeLabel">Seed</span>
+
+          <div
+            class="nexus-seed-switch"
+            role="group"
+            aria-labelledby="seedModeLabel"
+          >
+            <button
+              type="button"
+              id="btnSeedRandom"
+              class="nexus-btn nexus-btn-ghost nexus-seed-btn is-active"
+              aria-pressed="true"
+            >
+              Random
+            </button>
+            <button
+              type="button"
+              id="btnSeedFixed"
+              class="nexus-btn nexus-btn-ghost nexus-seed-btn"
+              aria-pressed="false"
+            >
+              Fixed
+            </button>
+          </div>
+
+          <button
+            type="button"
+            id="btnSeedValue"
+            class="nexus-btn nexus-btn-ghost nexus-seed-value"
+            disabled
+            aria-label="Fixed seed value"
+          >
+            —
+          </button>
+        </div>
+
+        <div class="nexus-quick-group">
+          <label class="nexus-label nexus-label--compact" for="rangeBatch">
+            Batch <span id="batchVal">1</span>
+          </label>
+          <input
+            id="rangeBatch"
+            class="nexus-range"
+            type="range"
+            min="1"
+            max="4"
+            step="1"
+            value="1"
+            aria-label="Batch size"
+          />
+        </div>
+        <button
+          id="btnCivitaiOpen"
+          class="nexus-btn nexus-btn-ghost nexus-icon-btn"
+          type="button"
+          aria-label="Civitai LoRA search"
+          title="Civitai LoRA search"
+        >
+          🔍
+        </button>
+      </div>
+    </header>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         WORKSPACE
+    ════════════════════════════════════════════════════════════════ -->
+    <div class="nexus-workspace-grid" id="workspaceGrid">
+
+      <!-- ─────────────── SIDEBAR ─────────────── -->
+      <aside class="nexus-sidebar-span">
+        <div class="nexus-sticky-panel">
+        <div class="nexus-quick-group nexus-quick-group--generate">
+          <button
+            type="button"
+            id="btnGenerate"
+            class="nexus-btn nexus-btn-primary nexus-generate-btn"
+          >
+            ⚡ GENERATE ⚡
+          </button>
+        </div>
+          <!-- Prompt Engine -->
+          <!-- Prompt Engine -->
+          <section class="nexus-panel nexus-sidebar-section">
+            <span class="nexus-label">◈ Prompt Engine</span>
+
+            <!-- Positive prompt header -->
+            <div class="nexus-prompt-header">
+              <label
+                class="nexus-label nexus-label--compact nexus-prompt-label nexus-prompt-label--positive"
+                for="posPrompt"
+              >
+                Positive Prompt
+              </label>
+
+              <div class="nexus-prompt-actions">
+                <span class="nexus-telemetry-text">
+                  <span id="posCount">0</span> chars
+                </span>
+
+                <button
+                  type="button"
+                  class="nexus-btn nexus-btn-ghost nexus-icon-btn"
+                  id="btnPosExpand"
+                  data-nexus-tip="Expand editor"
+                  aria-label="Expand positive prompt editor"
+                >
+                  ⤢
+                </button>
+
+                <button
+                  type="button"
+                  class="nexus-btn nexus-btn-ghost nexus-icon-btn"
+                  id="btnPosCopy"
+                  data-nexus-tip="Copy prompt"
+                  aria-label="Copy positive prompt"
+                >
+                  ⎘
+                </button>
+              </div>
+            </div>
+
+            <textarea
+              class="nexus-textarea"
+              id="posPrompt"
+              rows="4"
+              placeholder="Quality Anime Portrait Scene Aesthetic"
+            ></textarea>
+
+            <div class="nexus-btn-row">
+              <button
+                type="button"
+                class="nexus-btn nexus-btn-ghost prompt-preset"
+                data-target="posPrompt"
+                data-text="masterpiece, best quality, highly detailed"
+              >
+                Quality
+              </button>
+              <button
+                type="button"
+                class="nexus-btn nexus-btn-ghost prompt-preset"
+                data-target="posPrompt"
+                data-text="anime style, portrait, detailed face"
+              >
+                Anime
+              </button>
+              <button
+                type="button"
+                class="nexus-btn nexus-btn-ghost prompt-preset"
+                data-target="posPrompt"
+                data-text="scenic background, depth of field"
+              >
+                Scene
+              </button>
+              <button
+                type="button"
+                class="nexus-btn nexus-btn-ghost prompt-preset"
+                data-target="posPrompt"
+                data-text="aesthetic, vibrant colors, soft lighting"
+              >
+                Aesthetic
+              </button>
+            </div>
+            <div class="nexus-lora-triggers" id="loraTriggerContainer" hidden>
+              <span class="nexus-lora-triggers-label">LoRA trigger words</span>
+              <div class="nexus-lora-triggers-chips" id="loraTriggerChips"></div>
+            </div>
+
+            <!-- Negative prompt header -->
+            <div class="nexus-prompt-header nexus-prompt-header--spaced">
+              <label
+                class="nexus-label nexus-label--compact nexus-prompt-label nexus-prompt-label--negative"
+                for="negPrompt"
+              >
+                Negative Prompt
+              </label>
+
+              <div class="nexus-prompt-actions">
+                <span class="nexus-telemetry-text">
+                  <span id="negCount">0</span> chars
+                </span>
+
+                <button
+                  type="button"
+                  class="nexus-btn nexus-btn-ghost nexus-icon-btn"
+                  id="btnNegExpand"
+                  data-nexus-tip="Expand editor"
+                  aria-label="Expand negative prompt editor"
+                >
+                  ⤢
+                </button>
+
+                <button
+                  type="button"
+                  class="nexus-btn nexus-btn-ghost nexus-icon-btn"
+                  id="btnNegCopy"
+                  data-nexus-tip="Copy prompt"
+                  aria-label="Copy negative prompt"
+                >
+                  ⎘
+                </button>
+              </div>
+            </div>
+
+            <textarea
+              class="nexus-textarea"
+              id="negPrompt"
+              rows="3"
+              placeholder="Standard Strict Minimal"
+            ></textarea>
+
+            <div class="nexus-btn-row">
+              <button
+                type="button"
+                class="nexus-btn nexus-btn-ghost prompt-preset"
+                data-target="negPrompt"
+                data-text="lowres, bad anatomy, bad hands, watermark"
+              >
+                Standard
+              </button>
+              <button
+                type="button"
+                class="nexus-btn nexus-btn-ghost prompt-preset"
+                data-target="negPrompt"
+                data-text="lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry"
+              >
+                Strict
+              </button>
+              <button
+                type="button"
+                class="nexus-btn nexus-btn-ghost prompt-preset"
+                data-target="negPrompt"
+                data-text="lowres, bad quality"
+              >
+                Minimal
+              </button>
+            </div>
+          </section>
+
+          <!-- LoRA -->
+          <section class="nexus-panel nexus-sidebar-section">
+            <div class="nexus-section-header">
+              <span class="nexus-label">◈ LoRA Networks</span>
+              <button type="button" class="nexus-btn nexus-btn-ghost" id="btnAddLora">
+                + Inject LoRA
+              </button>
+            </div>
+            <div id="loraContainer" class="nexus-lora-container"></div>
+          </section>
+
+          <!-- Compact Steps / CFG -->
+          <section class="nexus-panel nexus-sidebar-section">
+            <span class="nexus-label">◈ Sampling Engine</span>
+
+            <div class="nexus-control-row">
+              <label class="nexus-label nexus-label--compact nexus-control-label" for="rangeSteps">
+                <span>Steps</span>
+                <span id="stepsVal">20</span>
+              </label>
+              <input
+                id="rangeSteps"
+                class="nexus-range nexus-range--compact"
+                type="range"
+                min="1"
+                max="50"
+                step="1"
+                value="20"
+                aria-label="Steps"
+              />
+            </div>
+
+            <div class="nexus-control-row">
+              <label class="nexus-label nexus-label--compact nexus-control-label" for="rangeCfg">
+                <span>CFG Scale</span>
+                <span id="cfgVal">4.5</span>
+              </label>
+              <input
+                id="rangeCfg"
+                class="nexus-range nexus-range--compact"
+                type="range"
+                min="0"
+                max="20"
+                step="0.1"
+                value="4.5"
+                aria-label="CFG scale"
+              />
+            </div>
+          </section>
+
+          <!-- Hires Fix -->
+          <section class="nexus-panel nexus-sidebar-section">
+            <div class="nexus-section-header">
+              <span class="nexus-label">◈ Hires Fix</span>
+              <input type="checkbox" id="hiresToggle" aria-label="Toggle hires fix" />
+            </div>
+
+            <div id="hiresControls" class="nexus-hires-controls" hidden>
+              <div>
+                <span class="nexus-label nexus-label--compact">Upscale Factor</span>
+                <div class="nexus-btn-row">
+                  <button type="button" class="nexus-btn nexus-btn-ghost hires-scale-btn" data-scale="1.25">1.25×</button>
+                  <button type="button" class="nexus-btn nexus-btn-ghost hires-scale-btn is-active" data-scale="1.5">1.5×</button>
+                  <button type="button" class="nexus-btn nexus-btn-ghost hires-scale-btn" data-scale="1.75">1.75×</button>
+                  <button type="button" class="nexus-btn nexus-btn-ghost hires-scale-btn" data-scale="2.0">2.0×</button>
+                </div>
+              </div>
+
+              <div class="nexus-control-row">
+                <label class="nexus-label nexus-label--compact nexus-control-label" for="rangeHiresSteps">
+                  <span>Hires Steps</span>
+                  <span id="hiresStepsVal">12</span>
+                </label>
+                <input
+                  id="rangeHiresSteps"
+                  class="nexus-range nexus-range--compact"
+                  type="range"
+                  min="1"
+                  max="50"
+                  value="12"
+                  aria-label="Hires steps"
+                />
+              </div>
+
+              <div>
+                <label class="nexus-label nexus-label--compact" for="selHiresSampler">Hires Sampler</label>
+                <select class="nexus-select nexus-select--compact" id="selHiresSampler">
+                  <option value="euler_ancestral">euler_ancestral</option>
+                  <option value="er_sde">er_sde</option>
+                  <option value="euler">euler</option>
+                  <option value="dpmpp_2m_sde_gpu">dpmpp_2m_sde_gpu</option>
+                </select>
+              </div>
+
+              <div class="nexus-control-row">
+                <label class="nexus-label nexus-label--compact nexus-control-label" for="rangeHiresCfg">
+                  <span>Hires CFG</span>
+                  <span id="hiresCfgVal">4.0</span>
+                </label>
+                <input
+                  id="rangeHiresCfg"
+                  class="nexus-range nexus-range--compact"
+                  type="range"
+                  min="0"
+                  max="30"
+                  step="0.1"
+                  value="4.0"
+                  aria-label="Hires CFG"
+                />
+              </div>
+
+              <div class="nexus-control-row">
+                <label class="nexus-label nexus-label--compact nexus-control-label" for="rangeHiresDenoise">
+                  <span>Denoise Strength</span>
+                  <span id="hiresDenoiseVal">0.40</span>
+                </label>
+                <input
+                  id="rangeHiresDenoise"
+                  class="nexus-range nexus-range--compact"
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value="0.40"
+                  aria-label="Hires denoise strength"
+                />
+              </div>
+
+              <div class="nexus-control-row">
+                <label class="nexus-label nexus-label--compact nexus-control-label" for="rangeHiresSharpen">
+                  <span>Sharpen Sigma</span>
+                  <span id="hiresSharpenVal">0.18</span>
+                </label>
+                <input
+                  id="rangeHiresSharpen"
+                  class="nexus-range nexus-range--compact"
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value="0.18"
+                  aria-label="Hires sharpen sigma"
+                />
+              </div>
+            </div>
+          </section>
+          <!-- Uplink -->
+          <section class="nexus-panel nexus-sidebar-section">
+            <span class="nexus-label">◈ Uplink Connection</span>
+            <div class="nexus-inline-row">
+              <input
+                class="nexus-input"
+                id="tunnelUrl"
+                type="url"
+                placeholder="Tunnel URL"
+                autocomplete="off"
+                aria-label="Tunnel URL"
+              />
+              <button
+                type="button"
+                class="nexus-btn nexus-btn-ghost"
+                id="btnConnect"
+                title="Connect"
+                aria-label="Connect to tunnel"
+              >
+                ↻
+              </button>
+            </div>
+          </section>
+
+          <!-- Base Model -->
+          <section class="nexus-panel nexus-sidebar-section">
+            <span class="nexus-label">◈ Base Model</span>
+
+            <label class="nexus-label nexus-label--compact" for="selCheckpoint">
+              Checkpoint (UNET)
+            </label>
+            <select class="nexus-select" id="selCheckpoint">
+              <option value="">-- Awaiting Uplink --</option>
+            </select>
+
+            <label class="nexus-label nexus-label--compact" for="selVae">VAE</label>
+            <select class="nexus-select" id="selVae">
+              <option value="">-- Awaiting Uplink --</option>
+            </select>
+
+            <label class="nexus-label nexus-label--compact" for="selClip">CLIP</label>
+            <select class="nexus-select" id="selClip">
+              <option value="">-- Awaiting Uplink --</option>
+            </select>
+          </section>
+
+
+        </div>
+      </aside>
+
+      <!-- ─────────────── MAIN GALLERY ─────────────── -->
+      <main class="nexus-main-span">
+        <div class="nexus-panel nexus-sidebar-section nexus-gallery-panel">
+          <div class="nexus-gallery-header">
+            <span class="nexus-label">Workspace Gallery</span>
+
+            <div class="nexus-btn-row">
+              <button type="button" class="nexus-btn nexus-btn-ghost" id="btnNewest">↓ Newest</button>
+              <button type="button" class="nexus-btn nexus-btn-ghost" id="btnOldest">↑ Oldest</button>
+              <button type="button" class="nexus-btn nexus-btn-ghost" id="btnSync">↻ Sync</button>
+            </div>
+          </div>
+
+          <div class="nexus-telemetry-text nexus-gallery-hint">
+            Click: Inspect · Right-Click: Remix · Drop PNG: Import
+          </div>
+
+          <div class="nexus-gallery-grid" id="galleryGrid">
+            <div class="nexus-gallery-empty">
+              ◬ Connect uplink to render nodes
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       CUSTOM RESOLUTION MODAL
+  ════════════════════════════════════════════════════════════════ -->
+  <div class="nexus-modal-backdrop" id="customResModal" aria-hidden="true">
+    <div
+      class="nexus-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="customResTitle"
+    >
+      <div class="nexus-modal-header">
+        <span class="nexus-label" id="customResTitle">Custom Resolution</span>
+        <button
+          type="button"
+          class="nexus-btn nexus-btn-ghost"
+          id="btnCustomClose"
+          aria-label="Close custom resolution popup"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div class="nexus-modal-body">
+        <label class="nexus-label nexus-label--compact" for="customWidth">Width</label>
+        <input
+          id="customWidth"
+          class="nexus-input"
+          type="number"
+          min="64"
+          max="4096"
+          step="1"
+          inputmode="numeric"
+          data-autofocus
+        />
+
+        <label class="nexus-label nexus-label--compact" for="customHeight">Height</label>
+        <input
+          id="customHeight"
+          class="nexus-input"
+          type="number"
+          min="64"
+          max="4096"
+          step="1"
+          inputmode="numeric"
+        />
+
+        <div
+          id="customResError"
+          class="nexus-modal-error nexus-telemetry-text"
+          role="alert"
+        ></div>
+      </div>
+
+      <div class="nexus-modal-actions">
+        <button type="button" class="nexus-btn nexus-btn-ghost" id="btnCustomCancel">
+          Cancel
+        </button>
+        <button type="button" class="nexus-btn nexus-btn-primary" id="btnCustomConfirm">
+          Confirm
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       FIXED SEED MODAL
+  ════════════════════════════════════════════════════════════════ -->
+  <div class="nexus-modal-backdrop" id="seedModal" aria-hidden="true">
+    <div
+      class="nexus-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="seedModalTitle"
+    >
+      <div class="nexus-modal-header">
+        <span class="nexus-label" id="seedModalTitle">Fixed Seed</span>
+        <button
+          type="button"
+          class="nexus-btn nexus-btn-ghost"
+          id="btnSeedClose"
+          aria-label="Close fixed seed popup"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div class="nexus-modal-body">
+        <label class="nexus-label nexus-label--compact" for="seedInput">Seed</label>
+        <input
+          id="seedInput"
+          class="nexus-input"
+          type="number"
+          min="1"
+          step="1"
+          inputmode="numeric"
+          data-autofocus
+        />
+
+        <div
+          id="seedError"
+          class="nexus-modal-error nexus-telemetry-text"
+          role="alert"
+        ></div>
+      </div>
+
+      <div class="nexus-modal-actions">
+        <button type="button" class="nexus-btn nexus-btn-ghost" id="btnSeedCancel">
+          Cancel
+        </button>
+        <button type="button" class="nexus-btn nexus-btn-primary" id="btnSeedConfirm">
+          Confirm
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       INSPECT MODAL
+  ════════════════════════════════════════════════════════════════ -->
+  <div class="nexus-inspect-backdrop" id="inspectModal" aria-hidden="true">
+    <div
+      class="nexus-inspect-shell"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Image inspect"
+    >
+      <button
+        type="button"
+        id="btnInspectPrev"
+        class="nexus-btn nexus-btn-ghost nexus-inspect-nav nexus-inspect-prev"
+        aria-label="Previous image"
+      >
+        ‹
+      </button>
+
+      <button
+        type="button"
+        id="btnInspectNext"
+        class="nexus-btn nexus-btn-ghost nexus-inspect-nav nexus-inspect-next"
+        aria-label="Next image"
+      >
+        ›
+      </button>
+
+      <img
+        id="inspectImg"
+        class="nexus-inspect-img"
+        src=""
+        alt="Generated image inspect"
+      />
+
+      <div class="nexus-inspect-actions">
+        <button type="button" class="nexus-btn nexus-btn-ghost" id="btnInspectDownload">⬇ Download</button>
+        <button type="button" class="nexus-btn nexus-btn-ghost" id="btnInspectRemix">⟲ Remix</button>
+        <button type="button" class="nexus-btn nexus-btn-ghost" id="btnInspectCopyPrompt">⎘ Copy Prompt</button>
+        <button type="button" class="nexus-btn nexus-btn-ghost" id="btnInspectCopySeed">⚄ Copy Seed</button>
+        <button type="button" class="nexus-btn nexus-btn-ghost" id="btnInspectClose">✕</button>
+      </div>
+
+      <div class="nexus-inspect-meta nexus-telemetry-text" aria-live="polite">
+        <span id="inspectFilename"></span>
+        <span id="inspectCounter"></span>
+      </div>
+
+      <div class="nexus-telemetry-text nexus-inspect-hint">
+        Arrows: Navigate · D: Download · ESC: Exit
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       REMIX MODAL
+  ════════════════════════════════════════════════════════════════ -->
+  <div class="nexus-modal-backdrop" id="remixModal" aria-hidden="true">
+    <div
+      class="nexus-modal nexus-modal--wide"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="remixTitle"
+    >
+      <div class="nexus-modal-header">
+        <span class="nexus-label" id="remixTitle">⟲ Remix Metadata</span>
+        <button
+          type="button"
+          class="nexus-btn nexus-btn-ghost"
+          id="btnRemixClose"
+          aria-label="Close remix metadata"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div class="nexus-modal-body">
+        <pre id="remixBody" class="nexus-remix-pre"></pre>
+      </div>
+
+      <div class="nexus-modal-actions">
+        <button type="button" class="nexus-btn nexus-btn-primary" id="btnRemixApply">
+          Apply to Form
+        </button>
+        <button type="button" class="nexus-btn nexus-btn-ghost" id="btnRemixClose2">
+          ✕ Close
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="dropZone" class="nexus-drop-zone" aria-hidden="true">
+    <div class="nexus-drop-zone__content">
+      Drop a ComfyUI PNG to remix its metadata
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       EXPANDED PROMPT EDITOR MODAL
+  ════════════════════════════════════════════════════════════════ -->
+  <div class="nexus-modal-backdrop" id="promptModal" aria-hidden="true">
+    <div
+      class="nexus-modal nexus-modal--wide"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="promptModalLabel"
+    >
+      <div class="nexus-modal-header">
+        <span class="nexus-label" id="promptModalLabel">
+          Positive Prompt
+        </span>
+
+        <div class="nexus-prompt-modal-meta">
+          <span class="nexus-telemetry-text" id="promptModalCharCount">
+            0 characters
+          </span>
+
+          <button
+            type="button"
+            class="nexus-btn nexus-btn-ghost"
+            id="btnPromptModalCopy"
+          >
+            ⎘ Copy
+          </button>
+
+          <button
+            type="button"
+            class="nexus-btn nexus-btn-ghost"
+            id="btnPromptModalCancel"
+            aria-label="Cancel and close"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+
+      <div class="nexus-modal-body">
+        <textarea
+          id="promptModalArea"
+          class="nexus-textarea nexus-prompt-modal-textarea"
+          rows="16"
+          data-autofocus
+          placeholder="Write prompt here..."
+          aria-label="Expanded prompt editor"
+        ></textarea>
+      </div>
+
+      <div class="nexus-modal-actions">
+        <button
+          type="button"
+          class="nexus-btn nexus-btn-ghost"
+          id="btnPromptModalCancelFooter"
+        >
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          class="nexus-btn nexus-btn-primary"
+          id="btnPromptModalApply"
+        >
+          Apply Changes
+        </button>
+      </div>
+    </div>
+  </div>
+  <!-- Civitai LoRA Search Modal -->
+  <div
+    id="civitaiSearchModal"
+    class="nexus-modal-backdrop"
+    aria-hidden="true"
+  >
+    <div
+      class="nexus-modal nexus-modal--wide nexus-modal--civitai"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="civitaiSearchTitle"
+    >
+      <!-- Header -->
+      <div class="nexus-modal-header">
+        <h2 id="civitaiSearchTitle" class="nexus-modal-title">
+          Civitai Model Search
+        </h2>
+
+        <button
+          id="btnCivitaiClose"
+          class="nexus-btn nexus-btn-ghost"
+          type="button"
+          aria-label="Close search"
+        >
+          ✕
+        </button>
+      </div>
+
+      <!-- Body -->
+      <div class="nexus-modal-body">
+        <div class="nexus-civitai-toolbar">
+          <!-- Row 1 : query + search -->
+          <div class="nexus-civitai-row nexus-civitai-row--search">
+            <div class="nexus-civitai-field nexus-civitai-field--query">
+              <label class="nexus-label nexus-label--compact" for="civitaiQuery">
+                Query
+              </label>
+              <input
+                id="civitaiQuery"
+                class="nexus-input"
+                type="search"
+                placeholder="Search LoRA models…"
+                data-autofocus
+              />
+            </div>
+
+            <div class="nexus-civitai-field nexus-civitai-field--submit">
+              <button id="btnCivitaiRun" class="nexus-btn" type="button">
+                Search
+              </button>
+            </div>
+          </div>
+
+          <!-- Row 2 : filters -->
+          <div class="nexus-civitai-row nexus-civitai-row--filters">
+            <div class="nexus-civitai-field">
+              <label class="nexus-label nexus-label--compact" for="civitaiType">
+                Type
+              </label>
+              <select id="civitaiType" class="nexus-select">
+                <option value="LORA" selected>LoRA</option>
+                <option value="LoCon">LoCon</option>
+                <option value="LyCORIS">LyCORIS</option>
+                <option value="DoRA">DoRA</option>
+                <option value="Checkpoint">Checkpoint</option>
+              </select>
+            </div>
+
+            <div class="nexus-civitai-field">
+              <label class="nexus-label nexus-label--compact" for="civitaiBaseModel">
+                Base Model
+              </label>
+              <select id="civitaiBaseModel" class="nexus-select">
+                <option value="">All base models</option>
+                <option value="SD 1.5">SD 1.5</option>
+                <option value="SDXL 1.0">SDXL 1.0</option>
+                <option value="Pony">Pony</option>
+                <option value="Flux.1 D">Flux.1 D</option>
+                <option value="Anima">Anima</option>
+              </select>
+            </div>
+
+            <div class="nexus-civitai-field">
+              <label class="nexus-label nexus-label--compact" for="civitaiSort">
+                Sort
+              </label>
+              <select id="civitaiSort" class="nexus-select">
+                <option value="">Default</option>
+                <option value="Most Downloaded">Most Downloaded</option>
+                <option value="Highest Rated">Highest Rated</option>
+                <option value="Newest">Newest</option>
+                <option value="Most Discussed">Most Discussed</option>
+                <option value="Most Collected">Most Collected</option>
+              </select>
+            </div>
+
+            <div class="nexus-civitai-field nexus-civitai-field--checkbox">
+              <label class="nexus-label nexus-label--compact" for="civitaiNsfw">
+                NSFW
+              </label>
+              <input
+                id="civitaiNsfw"
+                type="checkbox"
+                aria-label="Show NSFW results"
+              />
+            </div>
+          </div>
+
+          <!-- Row 3 : tags -->
+          <div class="nexus-civitai-row nexus-civitai-row--tags">
+            <div class="nexus-civitai-field nexus-civitai-field--tags">
+              <label class="nexus-label nexus-label--compact">Tags</label>
+              <div id="civitaiTags" class="nexus-civitai-tags"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Results -->
+        <div
+          id="civitaiResults"
+          class="nexus-civitai-grid"
+          aria-live="polite"
+        ></div>
+
+        <div
+          id="civitaiSentinel"
+          class="nexus-civitai-sentinel"
+          aria-hidden="true"
+        ></div>
+
+        <div
+          id="civitaiLoadMoreStatus"
+          class="nexus-civitai-load-more"
+          aria-live="polite"
+        ></div>
+
+        <div id="civitaiStatus" class="nexus-civitai-status" role="status"></div>
+      </div>
+
+      <!-- Footer actions -->
+      <div class="nexus-modal-actions">
+        <button
+          id="btnCivitaiExit"
+          class="nexus-btn nexus-btn-ghost"
+          type="button"
+        >
+          Exit
+        </button>
+      </div>
+    </div>
+  </div>
+  <!-- Toasts -->
+  <div class="nexus-toast-stack" id="toastStack"></div>
+
+  <!-- App -->
+  <script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
+
+</body>
+</html>

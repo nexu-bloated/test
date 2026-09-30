@@ -1,0 +1,2 @@
+Added search from civitai 
+Added place holders to download the loras directly into collab
